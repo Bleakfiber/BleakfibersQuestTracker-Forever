@@ -15,6 +15,7 @@ local zoneHeaders = {}
 -- Context Menu Frame for Quest Actions
 local questContextMenu = CreateFrame("Frame", "BleakfiberQuestContextMenu", UIParent, "UIDropDownMenuTemplate")
 
+-- Helper: Hide Default Blizzard Quest Watch Frame
 -- Helper: Hide Default Blizzard Quest Watch / Objective Tracker Frame (Supports Classic & Modern UI Presets)
 local function HookBlizzardTracker()
     if QuestWatchFrame then
@@ -355,6 +356,7 @@ function StandaloneTracker:OpenQuestContextMenu(anchor, qInfo)
             text = "Show in Quest Log",
             notCheckable = true,
             func = function()
+                if qInfo.questLogIndex then
                 if qInfo.questLogIndex and QuestLogFrame then
                     ShowUIPanel(QuestLogFrame)
                     SelectQuestLogEntry(qInfo.questLogIndex)
