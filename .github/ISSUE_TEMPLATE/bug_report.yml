@@ -1,0 +1,92 @@
+name: Bug Report
+description: "Report an issue, Lua error, or unexpected behavior in Bleakfiber's Quest Tracker."
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an issue! Please fill out the form below with as much detail as possible to help reproduce and resolve the problem quickly.
+
+  - type: dropdown
+    id: game-client
+    attributes:
+      label: "Game Client Version"
+      description: "Which World of Warcraft Classic flavor and client version are you playing?"
+      options:
+        - "Classic Era (1.15.x)"
+        - "Season of Discovery (SoD)"
+        - "Hardcore"
+        - "Other"
+    validations:
+      required: true
+
+  - type: input
+    id: addon-version
+    attributes:
+      label: "Addon Version"
+      description: "What version of Bleakfiber's Quest Tracker are you using?"
+      placeholder: "e.g. 1.0.0"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: active-integrations
+    attributes:
+      label: "Relevant Integrations & Addons Loaded"
+      description: "Check any optional addons currently enabled in your game:"
+      options:
+        - label: "Questie"
+        - label: "ElvUI"
+        - label: "TomTom"
+        - label: "BugSack / BugGrabber"
+        - label: "Tested with all other addons disabled"
+
+  - type: textarea
+    id: bug-description
+    attributes:
+      label: "Description of the Issue"
+      description: "A clear and concise description of what the problem is."
+      placeholder: "Describe what went wrong..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: "Steps to Reproduce"
+      description: "How can we reproduce the problem?"
+      placeholder: |
+        1. Log into character in [Zone]
+        2. Accept quest '[Quest Name]'
+        3. Click/toggle [...]
+        4. See error or visual issue
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: "Expected Behavior"
+      description: "What did you expect to happen instead?"
+      placeholder: "What should have happened..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: lua-error
+    attributes:
+      label: "Lua Error Log / Stack Trace"
+      description: "If you received a Lua error popup or have BugSack/BugGrabber installed, paste the FULL error message here."
+      placeholder: "Paste full Lua error trace here..."
+      render: lua
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: "Additional Context or Screenshots"
+      description: "Attach screenshots, error recordings, or any other helpful context (drag & drop images into the box)."
+    validations:
+      required: false

@@ -1,0 +1,11 @@
+# Operating System
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors & IDEs
+.vscode/
+.idea/
+*.swp
+*.bak
+BleakfiberQuestTracker.zip

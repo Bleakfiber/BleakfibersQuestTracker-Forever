@@ -1,0 +1,44 @@
+name: "Feature Request / Suggestion"
+description: "Suggest a new feature, customization option, or enhancement."
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting an idea for Bleakfiber's Quest Tracker!
+
+  - type: textarea
+    id: problem-statement
+    attributes:
+      label: "Is your feature request related to a problem?"
+      description: "A clear description of the problem or limitation you encountered."
+      placeholder: "e.g. I am frustrated when..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: "Proposed Solution / Feature Description"
+      description: "Describe the feature, option, or behavior you would like to see added."
+      placeholder: "Describe the new feature or customization option in detail..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives-considered
+    attributes:
+      label: "Alternatives Considered"
+      description: "Any alternative solutions or workarounds you've thought about."
+      placeholder: "Describe any alternative solutions or features you considered..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: "Additional Context or Mockups"
+      description: "Add any other context, UI sketches, or screenshots here."
+    validations:
+      required: false
