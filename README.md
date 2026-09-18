@@ -1,6 +1,6 @@
 # Bleakfiber's Quest Tracker (Forever)
 
-[![Interface](https://img.shields.io/badge/Interface-11509%20(WoW%20Forever)-blue.svg)](https://github.com/Bleakfiber/BleakfibersQuestTracker-Forever)
+[![Interface](https://img.shields.io/badge/Interface-16001%20(WoW%20Forever)-blue.svg)](https://github.com/Bleakfiber/BleakfibersQuestTracker-Forever)
 [![Version](https://img.shields.io/badge/Version-1.0.0-green.svg)](https://github.com/Bleakfiber/BleakfibersQuestTracker-Forever)
 [![License](https://img.shields.io/badge/License-Restricted%20Source--Available-red.svg)](LICENSE.md)
 
@@ -27,6 +27,7 @@ Designed as a modern alternative to the default Blizzard quest watch frame, it c
    - [Headers & Sections](#5-headers--sections)
    - [Sorting & Filtering](#6-sorting--filtering)
    - [Social, Automation & Audio](#7-social-automation--audio)
+   - [Profiles](#8-profiles)
 5. [Code Architecture & Function Reference](#code-architecture--function-reference)
    - [Core Architecture (`Core.lua`)](#core-architecture-corelua)
    - [Tracker Frame (`TrackerFrame.lua`)](#tracker-frame-trackerframelua)
@@ -108,21 +109,22 @@ When configuring the tracker via the **Sizing** tab, you can enable the **Visual
 
 ## Slash Commands
 
-You can manage the tracker using `/bfq` or `/bleaktracker`:
+You can manage the tracker using `/bfq`, `/bqt`, or `/bleaktracker`:
 
 | Command | Description |
 | :--- | :--- |
-| `/bfq` or `/bfq config` | Opens the graphical AceConfig options window. |
+| `/bfq` or `/bqt` | Opens the graphical AceConfig options window. |
 | `/bfq lock` | Locks the tracker frame position to prevent accidental dragging. |
 | `/bfq unlock` | Unlocks the tracker frame so it can be moved. |
 | `/bfq toggle` | Minimizes or expands the quest tracker. |
 | `/bfq reset` | Resets the tracker to its default screen position (`TOPRIGHT`). |
+| `/bfq profile [name]` | Displays the active profile or switches to a named profile. |
 
 ---
 
 ## Configuration Guide
 
-The configuration panel can be opened with `/bfq` or via the `[...]` menu. It is organized into 7 intuitive tabs:
+The configuration panel can be opened with `/bfq`, `/bqt`, or via the `[...]` menu. It is organized into 8 intuitive tabs:
 
 ### 1. General
 * **Lock Tracker Position**: Toggles mouse dragging on the header bar.
@@ -188,6 +190,12 @@ The configuration panel can be opened with `/bfq` or via the `[...]` menu. It is
 * **Play Sound on Complete**: Triggers an audio chime when an objective or quest is finished.
 * **Sound Effect Choice**: Choose between *Peon ("Work complete!")*, *Classic Quest Complete*, *Level Up Fanfare*, *Raid Warning*, *Ready Check*, *Mini-Map Ping*, or *PvP Horn*. Includes a live sound preview button.
 
+### 8. Profiles
+* **Global "Default" Profile**: All characters initially share the `"Default"` profile. Any changes made to settings or position are automatically shared account-wide across all your characters.
+* **Per-Character Customization**: Switch to a character-specific profile at any time in the Profiles tab (or create custom named profiles for alts, roles, or screen setups).
+* **Profile Management**: Full support for copying settings between profiles, creating new profiles, and resetting to addon defaults.
+* **Slash Command Switching**: Use `/bfq profile` to see your active profile, or `/bfq profile <name>` to switch instantly.
+
 ---
 
 ## Code Architecture & Function Reference
@@ -197,8 +205,7 @@ The addon is structured modularly under the private internal namespace `ns`:
 ```
 BleakfibersQuestTracker-Forever/
 ├── BleakfibersQuestTracker-Forever.toc # Primary Addon manifest
-├── BleakfiberQuestTracker.toc          # Compatibility manifest
-├── Core.lua                            # Lifecycle events, DB defaults, module manager, callbacks
+├── Core.lua                            # Lifecycle events, AceDB profile system, module manager, callbacks
 ├── Config.lua                          # AceConfig table, options panel, custom quick menu & copy dialog
 ├── TrackerFrame.lua                    # Primary UI frame, header controls, sizing guide, backdrop
 ├── Modules/
@@ -208,7 +215,7 @@ BleakfibersQuestTracker-Forever/
 │   └── Modules/
 │       ├── QuestieIntegration.lua
 │       └── ElvUIIntegration.lua
-└── Libs/                               # Ace3, LibSharedMedia-3.0, CallbackHandler
+└── Libs/                               # Ace3, LibSharedMedia-3.0, CallbackHandler, Compat.lua
 ```
 
 ---
@@ -222,7 +229,8 @@ BleakfibersQuestTracker-Forever/
 * `ns.title` *(string)*: Formatted title with color codes.
 * `ns.version` *(string)*: Version string read from the TOC file.
 * `ns.defaultDB` *(table)*: Comprehensive schema of default profile settings.
-* `ns.db` *(table)*: Active profile pointer referencing `BleakfiberTrackerDB.profile`.
+* `ns.dbObject` *(table)*: AceDB-3.0 database instance (`BleakfiberTrackerDB`).
+* `ns.db` *(table)*: Active profile pointer referencing `BleakfiberTrackerDB.profile` (defaults to `"Default"`).
 * `ns.modules` *(table)*: Hash map of registered module tables.
 * `ns.callbacks` *(table)*: Hash map of registered event callback functions.
 
@@ -277,6 +285,12 @@ Fetches current font selections and sizes from LibSharedMedia and applies them t
 
 ##### `Tracker:SetLocked(locked)`
 Locks or unlocks the frame. When locked, mouse dragging on the header is disabled.
+
+##### `Tracker:RestorePosition()`
+Restores the tracker frame's screen position based on coordinates saved in the active profile (`ns.db`), applying scale normalization and clearing Blizzard's layout cache (`SetUserPlaced(false)`).
+
+##### `Tracker:ResetPosition()`
+Resets the tracker to the default screen position (`TOPRIGHT`, -250, -200), anchors it for downward growth, synchronizes SavedVariables, and clears Blizzard's layout cache.
 
 ##### `Tracker:ToggleCollapse()`
 Toggles the expanded/collapsed state of the tracker contents and updates the collapse button icon (`-` or `+`).
@@ -378,7 +392,7 @@ Displays a draggable, modal dialog (`BleakfiberCopyURLDialog`) containing an edi
 * **None**: Bleakfiber's Quest Tracker contains built-in fallback routines and runs completely standalone.
 
 ### Embedded Libraries (Included in `Libs/`)
-* **AceAddon-3.0**, **AceEvent-3.0**, **AceTimer-3.0**, **AceConsole-3.0**, **AceGUI-3.0**, **AceConfig-3.0**
+* **AceAddon-3.0**, **AceEvent-3.0**, **AceTimer-3.0**, **AceConsole-3.0**, **AceGUI-3.0**, **AceConfig-3.0**, **AceDB-3.0**, **AceDBOptions-3.0**
 * **LibSharedMedia-3.0**
 * **CallbackHandler-1.0**
 

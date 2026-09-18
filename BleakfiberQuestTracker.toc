@@ -1,17 +1,2 @@
-## Interface: 11509
-## Title: |cff00c0ffBleakfiber's Quest Tracker|r - |cffffd100Forever|r
-## Notes: A lightweight, standalone, modular quest tracker designed for World of Warcraft: Forever.
-## Author: Bleakfiber
-## Version: 1.0.0
-## SavedVariables: BleakfiberTrackerDB
-## X-License: Restricted - Source Available (All Rights Reserved, No Derivatives)
-## X-Website: https://github.com/Bleakfiber/BleakfibersQuestTracker-Forever
-
-## OptionalDeps: Ace3, LibSharedMedia-3.0, TomTom
-
-Libs\Libs.xml
-Core.lua
-Config.lua
-TrackerFrame.lua
-Modules\StandaloneTracker.lua
-Modules\SocialModule.lua
+# OBSOLETE: This file has been deprecated and replaced by BleakfibersQuestTracker-Forever.toc
+# Do not add ## Interface here so WoW does not treat this as a duplicate addon.

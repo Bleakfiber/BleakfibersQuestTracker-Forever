@@ -21,7 +21,7 @@ By submitting a Pull Request, issue, or code snippet to this repository:
 
 - **Search Existing Issues**: Before opening a new issue, check if it has already been reported or addressed.
 - **Provide Context**: When reporting bugs, please include:
-  - Your game client version (e.g., World of Warcraft: Forever, 1.15.x).
+  - Your game client version (World of Warcraft: Forever 1.60.1+).
   - Addon version (e.g., 1.0.0).
   - Any error messages (e.g., BugSack / BugGrabber or Lua error popups).
   - Steps to reproduce the issue.
@@ -34,7 +34,7 @@ By submitting a Pull Request, issue, or code snippet to this repository:
 1. **Keep Changes Focused**: Make small, cohesive commits focused on a single fix or feature.
 2. **Coding Standards**:
    - Follow the existing Lua coding conventions and architecture (see `Core.lua`, `Config.lua`, and `TrackerFrame.lua`).
-   - Ensure compatibility with the targeted WoW Forever Classic API (`11509`+).
+   - Ensure compatibility with World of Warcraft: Forever (`1.60.1` / Interface `16001`+).
    - Avoid introducing heavy dependencies unless previously discussed.
 3. **Testing**: Test your changes thoroughly in-game.
 4. **Open a PR**: Submit your pull request to the `main` branch with a clear description of the problem solved or feature added.
