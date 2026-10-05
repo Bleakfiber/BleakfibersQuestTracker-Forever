@@ -791,40 +791,11 @@ function SocialModule:GetMissingPartyInfo(questID, questLogIndex)
 end
 
 function SocialModule:UpdateLootEvents()
-    self:UpdateAutomationEvents()
+    -- Fast Loot is handled by QoLModule
 end
 
 function SocialModule:UpdateAutomationEvents()
-    if not self.eventFrame then return end
-    local currentDB = (ns.dbObject and ns.dbObject.profile) or ns.db
-    local db = (currentDB and currentDB.social) or {}
-
-    -- Fast Loot Events
-    if db.fastAutoLoot ~= false then
-        self.eventFrame:RegisterEvent("LOOT_READY")
-        self.eventFrame:RegisterEvent("LOOT_OPENED")
-    else
-        self.eventFrame:UnregisterEvent("LOOT_READY")
-        self.eventFrame:UnregisterEvent("LOOT_OPENED")
-    end
-
-    -- Quest Automation Dialog Events (Only registered when automation is enabled)
-    local needsQuestDialogs = db.autoAcceptNPC or db.autoAcceptShared or db.autoTurnIn
-    if needsQuestDialogs then
-        self.eventFrame:RegisterEvent("QUEST_DETAIL")
-        self.eventFrame:RegisterEvent("QUEST_ACCEPT_CONFIRM")
-        self.eventFrame:RegisterEvent("QUEST_PROGRESS")
-        self.eventFrame:RegisterEvent("QUEST_COMPLETE")
-        self.eventFrame:RegisterEvent("GOSSIP_SHOW")
-        self.eventFrame:RegisterEvent("QUEST_GREETING")
-    else
-        self.eventFrame:UnregisterEvent("QUEST_DETAIL")
-        self.eventFrame:UnregisterEvent("QUEST_ACCEPT_CONFIRM")
-        self.eventFrame:UnregisterEvent("QUEST_PROGRESS")
-        self.eventFrame:UnregisterEvent("QUEST_COMPLETE")
-        self.eventFrame:UnregisterEvent("GOSSIP_SHOW")
-        self.eventFrame:UnregisterEvent("QUEST_GREETING")
-    end
+    -- Quest automation is handled by QuestAutomationModule
 end
 
 --------------------------------------------------------------------------------
@@ -881,19 +852,6 @@ function SocialModule:Initialize()
         local currentDB = (ns.dbObject and ns.dbObject.profile) or ns.db
         local db = (currentDB and currentDB.social) or {}
 
-        -- Fast Auto Loot
-        if event == "LOOT_READY" or event == "LOOT_OPENED" then
-            if db.fastAutoLoot ~= false and not IsBypassed() then
-                local numLoot = (GetNumLootItems and GetNumLootItems()) or 0
-                if numLoot > 0 then
-                    for i = numLoot, 1, -1 do
-                        LootSlot(i)
-                    end
-                end
-            end
-            return
-        end
-
         -- 1. Auto-Share Quests upon accepting when in a party
         if event == "QUEST_ACCEPTED" then
             local questLogIndex, questID = arg1, arg2
@@ -917,89 +875,6 @@ function SocialModule:Initialize()
             C_Timer.After(0.5, function()
                 CheckForCompletions()
             end)
-
-        -- 2. Auto-Accept Quests (Split: NPC quests and Shared party quests)
-        elseif event == "QUEST_DETAIL" then
-            if IsBypassed() then return end
-
-            local isNPC = IsNPCOffer()
-            if isNPC and db.autoAcceptNPC then
-                AcceptQuest()
-            elseif (not isNPC) and db.autoAcceptShared then
-                AcceptQuest()
-            end
-
-        elseif event == "QUEST_ACCEPT_CONFIRM" then
-            if IsBypassed() then return end
-            if db.autoAcceptNPC or db.autoAcceptShared then
-                ConfirmAcceptQuest()
-            end
-
-        -- 3. Auto-Progress / Gossip Dialogs
-        elseif event == "GOSSIP_SHOW" then
-            if IsBypassed() then return end
-
-            -- Prioritize turning in active complete quests first
-            if db.autoTurnIn and C_GossipInfo and C_GossipInfo.GetActiveQuests then
-                local active = C_GossipInfo.GetActiveQuests()
-                if active then
-                    for _, q in ipairs(active) do
-                        if q.isComplete then
-                            C_GossipInfo.SelectActiveQuest(q.questID)
-                            return
-                        end
-                    end
-                end
-            end
-
-            -- Auto-accept available quest if only 1 is available
-            if db.autoAcceptNPC and C_GossipInfo and C_GossipInfo.GetAvailableQuests then
-                local available = C_GossipInfo.GetAvailableQuests()
-                if available and #available == 1 then
-                    C_GossipInfo.SelectAvailableQuest(available[1].questID)
-                end
-            end
-
-        elseif event == "QUEST_GREETING" then
-            if IsBypassed() then return end
-
-            -- Auto turn-in complete active quests
-            if db.autoTurnIn and GetNumActiveQuests then
-                local numActive = GetNumActiveQuests() or 0
-                for i = 1, numActive do
-                    local _, isComplete = GetActiveTitle(i)
-                    if isComplete then
-                        SelectActiveQuest(i)
-                        return
-                    end
-                end
-            end
-
-            -- Auto-select available quest if only 1 is offered
-            if db.autoAcceptNPC and GetNumAvailableQuests then
-                local numAvailable = GetNumAvailableQuests() or 0
-                if numAvailable == 1 then
-                    SelectAvailableQuest(1)
-                end
-            end
-
-        -- 4. Auto Turn-In (Only for quests with 1 or less reward choice)
-        elseif event == "QUEST_PROGRESS" then
-            if IsBypassed() then return end
-            if db.autoTurnIn and IsQuestCompletable and IsQuestCompletable() then
-                CompleteQuest()
-            end
-
-        elseif event == "QUEST_COMPLETE" then
-            if IsBypassed() then return end
-            if db.autoTurnIn then
-                local numChoices = (GetNumQuestChoices and GetNumQuestChoices()) or 0
-                if numChoices <= 1 then
-                    -- 0 or 1 choice: automatically claim reward
-                    GetQuestReward(numChoices == 1 and 1 or 0)
-                end
-                -- If numChoices > 1: pause so player can pick their gear upgrade!
-            end
 
         -- 5. Completion Sound Alerts
         elseif event == "QUEST_WATCH_UPDATE" or event == "QUEST_LOG_UPDATE" or (event == "UNIT_QUEST_LOG_CHANGED" and arg1 == "player") then

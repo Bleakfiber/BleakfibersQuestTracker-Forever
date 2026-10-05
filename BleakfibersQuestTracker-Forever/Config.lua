@@ -4324,6 +4324,126 @@ function Config:ToggleConfigFrame()
             end
         end
     end
+-- ---------------------------------------------------------------------------
+-- Master Config Addon Integration (BleakfibersAddonConfigForever)
+-- ---------------------------------------------------------------------------
+
+local PublicAPI = ns.PublicAPI or _G["BleakfibersQuestTrackerForever"]
+
+function PublicAPI:BuildMasterConfigUI(parentContainer)
+    if not parentContainer then return end
+    local content = parentContainer.content or parentContainer
+
+    -- Clean up any prior child controls if container is being re-used
+    if content.bfqChildControls then
+        for _, ctrl in ipairs(content.bfqChildControls) do
+            ctrl:Hide()
+            ctrl:SetParent(nil)
+        end
+    end
+    content.bfqChildControls = {}
+
+    -- Header / Title
+    local title = content:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+    title:SetPoint("TOPLEFT", content, "TOPLEFT", 16, -16)
+    title:SetText("|cff00c0ffBleakfiber's Quest Tracker|r - |cffffd100Settings|r")
+    table.insert(content.bfqChildControls, title)
+
+    local subtitle = content:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    subtitle:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -4)
+    subtitle:SetText("Configure primary features or launch the advanced standalone configuration panel.")
+    table.insert(content.bfqChildControls, subtitle)
+
+    -- Button: Open Full Standalone Settings
+    local openFullBtn = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+    openFullBtn:SetSize(220, 26)
+    openFullBtn:SetPoint("TOPLEFT", subtitle, "BOTTOMLEFT", 0, -14)
+    openFullBtn:SetText("Open Advanced Settings...")
+    openFullBtn:SetScript("OnClick", function()
+        PublicAPI:OpenSettings()
+    end)
+    table.insert(content.bfqChildControls, openFullBtn)
+
+    -- Button: Setup Walkthrough
+    local onboardBtn = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+    onboardBtn:SetSize(180, 26)
+    onboardBtn:SetPoint("LEFT", openFullBtn, "RIGHT", 10, 0)
+    onboardBtn:SetText("Run Setup Walkthrough")
+    onboardBtn:SetScript("OnClick", function()
+        if ns.Onboarding and ns.Onboarding.ShowWizard then
+            ns.Onboarding:ShowWizard()
+        end
+    end)
+    table.insert(content.bfqChildControls, onboardBtn)
+
+    -- Quick Checkboxes Helper
+    local function CreateCheck(label, key, parentKey, anchorTo, xOff, yOff)
+        local check = CreateFrame("CheckButton", nil, content, "UICheckButtonTemplate")
+        check:SetPoint("TOPLEFT", anchorTo, "BOTTOMLEFT", xOff, yOff)
+        local text = check.text or (check:GetName() and _G[check:GetName() .. "Text"])
+        if not text then
+            text = check:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+            text:SetPoint("LEFT", check, "RIGHT", 4, 1)
+        end
+        text:SetText(label)
+
+        local function GetVal()
+            local curDB = ns.db or _G["BleakfiberTrackerDB"]
+            if parentKey then
+                return curDB and curDB[parentKey] and curDB[parentKey][key]
+            else
+                return curDB and curDB[key]
+            end
+        end
+
+        local function SetVal(val)
+            local curDB = ns.db or _G["BleakfiberTrackerDB"]
+            if parentKey then
+                curDB[parentKey] = curDB[parentKey] or {}
+                curDB[parentKey][key] = val
+            else
+                curDB[key] = val
+            end
+            PublicAPI:ApplySettings()
+        end
+
+        check:SetChecked(GetVal() == true)
+        check:SetScript("OnClick", function(self)
+            SetVal(self:GetChecked())
+        end)
+        table.insert(content.bfqChildControls, check)
+        return check
+    end
+
+    local chkLock = CreateCheck("Lock Tracker Position", "locked", nil, openFullBtn, 0, -16)
+    local chkWayfinder = CreateCheck("Enable Wayfinder Navigation & Map Pins", "enabled", "wayfinder", chkLock, 0, -6)
+    local chkDataBars = CreateCheck("Enable DataBars (XP, Location, Timer)", "enabled", "databars", chkWayfinder, 0, -6)
+    local chkAutomation = CreateCheck("Enable Quest Automation (Auto-Accept/Turn-in)", "enabled", "automation", chkDataBars, 0, -6)
+    local chkQoL = CreateCheck("Enable Quality of Life (Fast Auto-Loot, Grey Selling)", "enabled", "qol", chkAutomation, 0, -6)
+
+    -- Scale Slider
+    local scaleSlider = CreateFrame("Slider", nil, content, "OptionsSliderTemplate")
+    scaleSlider:SetPoint("TOPLEFT", chkQoL, "BOTTOMLEFT", 4, -28)
+    scaleSlider:SetWidth(240)
+    scaleSlider:SetMinMaxValues(0.5, 1.5)
+    scaleSlider:SetValueStep(0.05)
+    scaleSlider:SetObeyStepNumbers(true)
+
+    local sText = scaleSlider.Text or (scaleSlider:GetName() and _G[scaleSlider:GetName() .. "Text"])
+    local sLow = scaleSlider.Low or (scaleSlider:GetName() and _G[scaleSlider:GetName() .. "Low"])
+    local sHigh = scaleSlider.High or (scaleSlider:GetName() and _G[scaleSlider:GetName() .. "High"])
+    if sText then sText:SetText(string.format("Tracker Scale: %.2f", (ns.db and ns.db.scale) or 1.0)) end
+    if sLow then sLow:SetText("50%") end
+    if sHigh then sHigh:SetText("150%") end
+
+    scaleSlider:SetValue((ns.db and ns.db.scale) or 1.0)
+    scaleSlider:SetScript("OnValueChanged", function(self, val)
+        val = math.floor(val * 100 + 0.5) / 100
+        if ns.db then ns.db.scale = val end
+        if sText then sText:SetText(string.format("Tracker Scale: %.2f", val)) end
+        PublicAPI:ApplySettings()
+    end)
+    table.insert(content.bfqChildControls, scaleSlider)
 end
 
 -- Slash Command Handler
@@ -4527,11 +4647,18 @@ local function HandleSlashCommands(msg)
         if ns.Onboarding and ns.Onboarding.ShowWizard then
             ns.Onboarding:ShowWizard()
         end
-    elseif command == "config" or command == "options" or command == "" then
+    elseif command == "standalone" then
         Config:ToggleConfigFrame()
+    elseif command == "config" or command == "options" or command == "" then
+        if BleakfibersAddonConfigForever and BleakfibersAddonConfigForever.OpenToModule and not IsShiftKeyDown() then
+            BleakfibersAddonConfigForever:OpenToModule("BleakfibersQuestTracker")
+        else
+            Config:ToggleConfigFrame()
+        end
     else
         print("|cff00c0ffBleakfiber's Quest Tracker Commands:|r")
         print("  |cff00ff00/bfq|r or |cff00ff00/bqt|r - Open configuration panel")
+        print("  |cff00ff00/bfq standalone|r - Force open standalone settings panel")
         print("  |cff00ff00/bfq onboard|r - Open interactive setup walkthrough")
         print("  |cff00ff00/bfq poi|r - Inspect live quest objective and turn-in map coordinates")
         print("  |cff00ff00/bfq lock|r - Lock tracker position")

@@ -46,7 +46,87 @@ ns.addonName = addonName
 ns.title = "|cff00c0ffBleakfiber's Quest Tracker - Forever|r"
 ns.version = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(addonName, "Version")) 
     or (GetAddOnMetadata and GetAddOnMetadata(addonName, "Version")) 
-    or "1.0.14"
+    or "1.0.15"
+
+-- Public Module API & Global Exports for Centralized Config Addons
+local PublicAPI = _G["BleakfibersQuestTrackerForever"] or {}
+_G["BleakfibersQuestTrackerForever"] = PublicAPI
+_G["BleakfiberQuestTracker"] = PublicAPI
+ns.PublicAPI = PublicAPI
+PublicAPI.addonName = addonName
+PublicAPI.version = ns.version
+
+function PublicAPI:GetDB()
+    return ns.db or _G["BleakfiberTrackerDB"]
+end
+
+function PublicAPI:ApplySettings()
+    -- 1. Tracker frame, typography, backdrops & headers
+    if ns.Tracker then
+        if ns.Tracker.UpdateBackdrop then ns.Tracker:UpdateBackdrop() end
+        if ns.Tracker.UpdateTypography then ns.Tracker:UpdateTypography() end
+        if ns.Tracker.UpdateSettings then ns.Tracker:UpdateSettings() end
+        if ns.Tracker.UpdateVisibility then ns.Tracker:UpdateVisibility() end
+        if ns.Tracker.UpdateFilterButtons then ns.Tracker:UpdateFilterButtons() end
+    end
+
+    -- 2. Quest entries and item buttons
+    if ns.StandaloneTracker then
+        if ns.StandaloneTracker.UpdateItemButton then ns.StandaloneTracker:UpdateItemButton() end
+        if ns.StandaloneTracker.RequestUpdate then ns.StandaloneTracker:RequestUpdate(true) end
+        if ns.StandaloneTracker.UpdateTracker then ns.StandaloneTracker:UpdateTracker() end
+    end
+
+    -- 3. Wayfinder navigation and map pins
+    if ns.WayfinderModule and ns.WayfinderModule.RefreshState then
+        ns.WayfinderModule:RefreshState()
+    end
+
+    -- 4. DataBars (XP, Coordinates, Quest Timer)
+    if ns.DataBarsModule then
+        if ns.DataBarsModule.RefreshBars then ns.DataBarsModule:RefreshBars() end
+        if ns.DataBarsModule.ApplyTypography then ns.DataBarsModule:ApplyTypography() end
+    end
+
+    -- 5. Social & Automation events
+    if ns.SocialModule and ns.SocialModule.UpdateLootEvents then
+        ns.SocialModule:UpdateLootEvents()
+    end
+
+    -- 6. Immediate multi-layer persistence flush
+    if ns.FlushDBToGlobals then
+        ns.FlushDBToGlobals()
+    end
+end
+
+function PublicAPI:OpenSettings()
+    if ns.Config and ns.Config.ToggleConfigFrame then
+        ns.Config:ToggleConfigFrame()
+    end
+end
+
+function PublicAPI:RegisterWithMasterConfig()
+    if BleakfibersAddonConfigForever and BleakfibersAddonConfigForever.RegisterModule then
+        BleakfibersAddonConfigForever:RegisterModule("BleakfibersQuestTracker", {
+            id = "BleakfibersQuestTracker",
+            name = "Quest Tracker",
+            version = ns.version or "1.0.15",
+            db = ns.db or _G["BleakfiberTrackerDB"],
+            getDB = function() return ns.db or _G["BleakfiberTrackerDB"] end,
+            refresh = function()
+                PublicAPI:ApplySettings()
+            end,
+            openStandalone = function()
+                PublicAPI:OpenSettings()
+            end,
+            buildUI = function(parentContainer)
+                if PublicAPI.BuildMasterConfigUI then
+                    PublicAPI:BuildMasterConfigUI(parentContainer)
+                end
+            end,
+        })
+    end
+end
 
 -- Print helper with colored prefix
 function ns.Print(...)
@@ -418,12 +498,15 @@ function ns.GetQuestObjectives(questID, questLogIndex, outList)
     end
 
     -- If questLogIndex is missing but questID is provided, find questLogIndex
-    if not questLogIndex and questID then
-        local num = (GetNumQuestLogEntries and select(1, GetNumQuestLogEntries())) or 0
+    local targetLogIndex = questLogIndex
+    if not targetLogIndex and questID then
+        local num = (C_QuestLog and C_QuestLog.GetNumQuestLogEntries and SafeCall(C_QuestLog.GetNumQuestLogEntries))
+            or (GetNumQuestLogEntries and select(1, GetNumQuestLogEntries())) or 0
         for i = 1, num do
-            local _, _, _, _, _, _, _, qID = ns.GetQuestLogTitle(i)
-            if qID == questID then
-                questLogIndex = i
+            local qInfo = C_QuestLog and C_QuestLog.GetInfo and SafeCall(C_QuestLog.GetInfo, i)
+            local foundQID = (qInfo and qInfo.questID) or (ns.GetQuestLogTitle and select(8, ns.GetQuestLogTitle(i)))
+            if foundQID == questID then
+                targetLogIndex = i
                 break
             end
         end
@@ -445,16 +528,16 @@ function ns.GetQuestObjectives(questID, questLogIndex, outList)
         end
     end
 
-    if questLogIndex and GetNumQuestLeaderBoards and GetQuestLogLeaderBoard then
-        local numLeaderBoards = GetNumQuestLeaderBoards(questLogIndex) or 0
+    if targetLogIndex and GetNumQuestLeaderBoards and GetQuestLogLeaderBoard then
+        local numLeaderBoards = GetNumQuestLeaderBoards(targetLogIndex) or 0
         if (numLeaderBoards == 0) and SelectQuestLogEntry then
             local prev = GetQuestLogSelection and GetQuestLogSelection()
-            SelectQuestLogEntry(questLogIndex)
+            SelectQuestLogEntry(targetLogIndex)
             numLeaderBoards = GetNumQuestLeaderBoards() or 0
             for j = 1, numLeaderBoards do
                 local desc, objType, done = GetQuestLogLeaderBoard(j)
                 if not desc then
-                    desc, objType, done = GetQuestLogLeaderBoard(j, questLogIndex)
+                    desc, objType, done = GetQuestLogLeaderBoard(j, targetLogIndex)
                 end
                 if desc then
                     local entry = AcquireObjectiveObj()
@@ -473,7 +556,7 @@ function ns.GetQuestObjectives(questID, questLogIndex, outList)
             return objectives
         elseif numLeaderBoards > 0 then
             for j = 1, numLeaderBoards do
-                local desc, objType, done = GetQuestLogLeaderBoard(j, questLogIndex)
+                local desc, objType, done = GetQuestLogLeaderBoard(j, targetLogIndex)
                 if desc then
                     local entry = AcquireObjectiveObj()
                     entry.text = desc
@@ -1670,8 +1753,14 @@ eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 eventFrame:RegisterEvent("PLAYER_LOGOUT")
 
 eventFrame:SetScript("OnEvent", function(self, event, arg1, ...)
-    if event == "ADDON_LOADED" and arg1 == addonName then
-        InitializeDB("ADDON_LOADED")
+    if event == "ADDON_LOADED" then
+        if arg1 == addonName then
+            InitializeDB("ADDON_LOADED")
+        elseif arg1 == "BleakfibersAddonConfigForever" then
+            if PublicAPI.RegisterWithMasterConfig then
+                PublicAPI:RegisterWithMasterConfig()
+            end
+        end
     elseif event == "VARIABLES_LOADED" then
         InitializeDB("VARIABLES_LOADED")
     elseif event == "PLAYER_LOGIN" then
@@ -1689,6 +1778,11 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1, ...)
             ns.SocialModule:UpdateLootEvents()
         end
         ns:FireCallback("ON_INITIALIZE")
+
+        -- Register with Master Config addon if present
+        if PublicAPI.RegisterWithMasterConfig then
+            PublicAPI:RegisterWithMasterConfig()
+        end
         if ns.PurgeInvalidTimerCache then
             ns.PurgeInvalidTimerCache()
         end
