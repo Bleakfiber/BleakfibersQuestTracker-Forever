@@ -1,2 +1,0 @@
--- Archived: Moved to Archive/Modules/ElvUIIntegration.lua for World of Warcraft: Forever
--- This module is disabled for launch as third-party addon frameworks are not yet available.

@@ -1,7 +1,7 @@
 # Bleakfiber's Quest Tracker (Forever)
 
 [![Interface](https://img.shields.io/badge/Interface-16001%20(WoW%20Forever)-blue.svg)](https://github.com/Bleakfiber/BleakfibersQuestTracker-Forever)
-[![Version](https://img.shields.io/badge/Version-1.0.0-green.svg)](https://github.com/Bleakfiber/BleakfibersQuestTracker-Forever)
+[![Version](https://img.shields.io/badge/Version-1.0.4-green.svg)](https://github.com/Bleakfiber/BleakfibersQuestTracker-Forever)
 [![License](https://img.shields.io/badge/License-Restricted%20Source--Available-red.svg)](LICENSE.md)
 
 **Bleakfiber's Quest Tracker** is a modular, high-performance, standalone quest tracking interface crafted specifically for **World of Warcraft: Forever**.

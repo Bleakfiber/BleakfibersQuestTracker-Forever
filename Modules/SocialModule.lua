@@ -5,27 +5,204 @@ ns.SocialModule = SocialModule
 ns:RegisterModule("SocialModule", SocialModule)
 
 -- Sound effect presets with direct CASC FileDataIDs and SoundKit IDs
+-- Sound effect presets with SoundKit IDs, classic sound names, and audio file paths
 local SOUND_PRESETS = {
-    peon = { type = "file", id = 558132 },           -- Peon: "Work complete!"
-    quest_complete = { type = "file", id = 567400 }, -- Classic Quest Complete Chime
-    level_up = { type = "kit", id = 888 },           -- Level Up Fanfare
-    raid_warning = { type = "kit", id = 8959 },      -- Raid Warning Chime
-    ready_check = { type = "kit", id = 8960 },       -- Ready Check Chime
-    map_ping = { type = "kit", id = 3175 },          -- Mini-Map Ping
-    pvp_horn = { type = "kit", id = 8456 },          -- PvP Queue Horn
+    peon = {
+        name = "Peon: \"Work complete!\"",
+        kit = (SOUNDKIT and SOUNDKIT.UI_PEON_BUILDING_COMPLETE_01) or 6199,
+        soundName = "PeonBuildingComplete1",
+        files = {
+            "Sound\\Creature\\Peon\\PeonBuildingComplete1.ogg",
+            "Sound\\Creature\\Peon\\PeonBuildingComplete1.wav",
+            558132,
+        },
+    },
+    quest_complete = {
+        name = "Classic Quest Complete Chime",
+        kit = (SOUNDKIT and SOUNDKIT.IG_QUEST_LIST_COMPLETE) or 618,
+        soundName = "igQuestListComplete",
+        files = {
+            "Sound\\Interface\\igQuestListComplete.ogg",
+            "Sound\\Interface\\igQuestListComplete.wav",
+            567400,
+        },
+    },
+    map_ping = {
+        name = "Mini-Map Ping",
+        kit = (SOUNDKIT and SOUNDKIT.MAP_PING) or 3175,
+        soundName = "MapPing",
+        files = {
+            "Sound\\Interface\\MapPing.ogg",
+            "Sound\\Interface\\MapPing.wav",
+            567439,
+        },
+    },
+    item_click = {
+        name = "Subtle Objective Click",
+        kit = (SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON) or 856,
+        soundName = "igMainMenuOptionCheckBoxOn",
+        files = {
+            "Sound\\Interface\\uChatScrollButton.ogg",
+            "Sound\\Interface\\uChatScrollButton.wav",
+        },
+    },
+    level_up = {
+        name = "Level Up Fanfare",
+        kit = (SOUNDKIT and SOUNDKIT.LEVEL_UP) or 888,
+        soundName = "LevelUp",
+        files = {
+            "Sound\\Interface\\LevelUp.ogg",
+            "Sound\\Interface\\LevelUp.wav",
+        },
+    },
+    raid_warning = {
+        name = "Raid Warning Chime",
+        kit = (SOUNDKIT and SOUNDKIT.RAID_WARNING) or 8959,
+        soundName = "RaidWarning",
+        files = {
+            "Sound\\Interface\\RaidWarning.ogg",
+            "Sound\\Interface\\RaidWarning.wav",
+        },
+    },
+    ready_check = {
+        name = "Ready Check Chime",
+        kit = (SOUNDKIT and SOUNDKIT.READY_CHECK) or 8960,
+        soundName = "ReadyCheck",
+        files = {
+            "Sound\\Interface\\ReadyCheck.ogg",
+            "Sound\\Interface\\ReadyCheck.wav",
+        },
+    },
+    pvp_horn = {
+        name = "PvP Queue Horn",
+        kit = (SOUNDKIT and SOUNDKIT.PVP_THROUGH_QUEUE) or 8456,
+        soundName = "PVPThroughQueue",
+        files = {
+            "Sound\\Interface\\PVPThroughQueue.ogg",
+            "Sound\\Interface\\PVPThroughQueue.wav",
+        },
+    },
 }
 
+-- Track quest and objective completion states so sounds ONLY play on actual completion
+local completedQuestsCache = {}
+local completedObjectivesCache = {}
+local objectiveCountCache = {}
+local soundSuppressedUntil = GetTime() + 5.0 -- Mute completion sounds during initial load & zoning
+local lastSoundPlayTime = 0
+
 function SocialModule:PlaySoundKey(choice)
-    local entry = SOUND_PRESETS[choice] or SOUND_PRESETS.peon
-    if entry.type == "file" then
-        PlaySoundFile(entry.id, "Master")
-    elseif entry.type == "kit" then
-        PlaySound(entry.id, "Master")
+    local preset = SOUND_PRESETS[choice] or SOUND_PRESETS.peon
+    local played = false
+
+    -- 1. Try runtime SOUNDKIT table first with multiple channels
+    if SOUNDKIT and PlaySound then
+        local kitConst = (choice == "peon" and SOUNDKIT.UI_PEON_BUILDING_COMPLETE_01)
+            or (choice == "quest_complete" and SOUNDKIT.IG_QUEST_LIST_COMPLETE)
+            or (choice == "level_up" and SOUNDKIT.LEVEL_UP)
+            or (choice == "raid_warning" and SOUNDKIT.RAID_WARNING)
+            or (choice == "ready_check" and SOUNDKIT.READY_CHECK)
+            or (choice == "map_ping" and SOUNDKIT.MAP_PING)
+            or (choice == "item_click" and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
+            or (choice == "pvp_horn" and SOUNDKIT.PVP_THROUGH_QUEUE)
+        if kitConst then
+            local ok, willPlay = pcall(PlaySound, kitConst, "Master")
+            if ok and willPlay ~= false then
+                played = true
+            else
+                local ok2, willPlay2 = pcall(PlaySound, kitConst, "SFX")
+                if ok2 and willPlay2 ~= false then
+                    played = true
+                else
+                    local ok3, willPlay3 = pcall(PlaySound, kitConst)
+                    if ok3 and willPlay3 ~= false then
+                        played = true
+                    end
+                end
+            end
+        end
     end
+
+    -- 2. Try numeric preset.kit
+    if not played and preset.kit and PlaySound then
+        local ok, willPlay = pcall(PlaySound, preset.kit, "Master")
+        if ok and willPlay ~= false then
+            played = true
+        else
+            local ok2, willPlay2 = pcall(PlaySound, preset.kit, "SFX")
+            if ok2 and willPlay2 ~= false then
+                played = true
+            else
+                local ok3, willPlay3 = pcall(PlaySound, preset.kit)
+                if ok3 and willPlay3 ~= false then
+                    played = true
+                end
+            end
+        end
+    end
+
+    -- 3. Try legacy sound name string via PlaySound
+    if not played and preset.soundName and PlaySound then
+        local ok, willPlay = pcall(PlaySound, preset.soundName, "Master")
+        if ok and willPlay ~= false then
+            played = true
+        else
+            pcall(PlaySound, preset.soundName)
+        end
+    end
+
+    -- 4. Try PlaySoundFile with exact paths and FileDataIDs
+    if not played and preset.files and PlaySoundFile then
+        for _, file in ipairs(preset.files) do
+            local ok, willPlay = pcall(PlaySoundFile, file, "Master")
+            if ok and willPlay ~= false then
+                played = true
+                break
+            else
+                local ok2, willPlay2 = pcall(PlaySoundFile, file, "SFX")
+                if ok2 and willPlay2 ~= false then
+                    played = true
+                    break
+                else
+                    local ok3, willPlay3 = pcall(PlaySoundFile, file)
+                    if ok3 and willPlay3 ~= false then
+                        played = true
+                        break
+                    end
+                end
+            end
+        end
+    end
+end
+
+function SocialModule:PlayCompletionSound()
+    local now = GetTime()
+    if soundSuppressedUntil and now < soundSuppressedUntil then return end
+    if lastSoundPlayTime and (now - lastSoundPlayTime) < 0.25 then return end
+    lastSoundPlayTime = now
+
+    local db = ns.db and ns.db.sound
+    if not (db and db.enableCompleteSound) then return end
+    self:PlaySoundKey(db.soundChoice or "peon")
+end
+
+function SocialModule:PlayObjectiveSound()
+    local now = GetTime()
+    if soundSuppressedUntil and now < soundSuppressedUntil then return end
+    if lastSoundPlayTime and (now - lastSoundPlayTime) < 0.25 then return end
+    lastSoundPlayTime = now
+
+    local db = ns.db and ns.db.sound
+    if not (db and db.enableObjectiveSound) then return end
+    self:PlaySoundKey(db.objectiveSoundChoice or "map_ping")
 end
 
 function SocialModule:PlayPreviewSound(choice)
     self:PlaySoundKey(choice or (ns.db and ns.db.sound and ns.db.sound.soundChoice) or "peon")
+end
+
+function SocialModule:PlayPreviewObjectiveSound(choice)
+    self:PlaySoundKey(choice or (ns.db and ns.db.sound and ns.db.sound.objectiveSoundChoice) or "map_ping")
 end
 
 -- Helper: Check if automation is currently bypassed by holding Shift
@@ -42,24 +219,6 @@ local function IsNPCOffer()
     if UnitExists("npc") then return true end
     if UnitExists("target") and not UnitIsPlayer("target") then return true end
     return false
-end
-
--- Track quest and objective completion states so sounds ONLY play on actual completion
-local completedQuestsCache = {}
-local completedObjectivesCache = {}
-local objectiveCountCache = {}
-local soundSuppressedUntil = GetTime() + 5.0 -- Mute completion sounds during initial load & zoning
-local lastSoundPlayTime = 0
-
-function SocialModule:PlayCompletionSound()
-    local now = GetTime()
-    if now < soundSuppressedUntil then return end
-    if (now - lastSoundPlayTime) < 0.5 then return end
-    lastSoundPlayTime = now
-
-    local db = ns.db and ns.db.sound
-    if not (db and db.enableCompleteSound) then return end
-    self:PlaySoundKey(db.soundChoice or "peon")
 end
 
 local function AnnouncePartyMessage(msg)
@@ -82,19 +241,26 @@ end
 local function CheckForCompletions()
     local now = GetTime()
     local isSuppressed = (now < soundSuppressedUntil)
-    local numEntries = (ns.GetNumQuestLogEntries and select(1, ns.GetNumQuestLogEntries())) or (GetNumQuestLogEntries and select(1, GetNumQuestLogEntries())) or 0
-    local shouldPlay = false
+    local numEntries = (ns.GetNumQuestLogEntries and select(1, ns.GetNumQuestLogEntries()))
+        or (GetNumQuestLogEntries and select(1, GetNumQuestLogEntries()))
+        or 0
+
+    local questJustCompleted = false
+    local objectiveJustProgressed = false
 
     for i = 1, numEntries do
-        local title, _, _, isHeader, _, isComplete, _, questID = (ns.GetQuestLogTitle and ns.GetQuestLogTitle(i)) or (GetQuestLogTitle and GetQuestLogTitle(i))
+        local title, _, _, isHeader, _, isComplete, _, questID = (ns.GetQuestLogTitle and ns.GetQuestLogTitle(i))
+            or (GetQuestLogTitle and GetQuestLogTitle(i))
+
         if not isHeader and questID then
             local isFinished = (isComplete == 1 or isComplete == true)
+                or (ns.IsQuestComplete and ns.IsQuestComplete(questID, i))
 
             -- 1. Full Quest Completion (ready for turn-in)
             local wasQuestComplete = completedQuestsCache[questID]
             if isFinished then
                 if wasQuestComplete == false and not isSuppressed then
-                    shouldPlay = true
+                    questJustCompleted = true
                     AnnouncePartyMessage(string.format("[BFQ] Quest Complete: %s", title or "Quest"))
                 end
                 completedQuestsCache[questID] = true
@@ -102,23 +268,30 @@ local function CheckForCompletions()
                 completedQuestsCache[questID] = false
             end
 
-            -- 2. Individual Objective Completion (finished == true)
-            local objectives = (ns.GetQuestObjectives and ns.GetQuestObjectives(questID, i)) or {}
+            -- 2. Individual Objective Progress & Completion
+            local objectives = (ns.GetQuestObjectives and ns.GetQuestObjectives(questID, i))
+                or (C_QuestLog and C_QuestLog.GetQuestObjectives and C_QuestLog.GetQuestObjectives(questID))
+                or {}
+
             for j, obj in ipairs(objectives) do
                 local text = obj.text
                 local finished = obj.finished
                 local key = questID .. "_" .. j
                 local wasObjFinished = completedObjectivesCache[key]
                 local cur, maxVal = 0, 1
+
                 if text then
                     local c, m = text:match("(%d+)%s*/%s*(%d+)")
                     if c and m then
                         cur = tonumber(c) or 0
                         maxVal = tonumber(m) or 1
                     else
-                        cur = finished and 1 or 0
+                        cur = (finished and 1) or 0
                         maxVal = 1
                     end
+                else
+                    cur = (finished and 1) or 0
+                    maxVal = 1
                 end
 
                 local wasCount = objectiveCountCache[key]
@@ -126,22 +299,29 @@ local function CheckForCompletions()
 
                 if finished then
                     if wasObjFinished == false and not isSuppressed then
-                        -- Only alert if count actually progressed or this is a single event objective
-                        if wasCount == nil or cur > wasCount or maxVal == 1 then
-                            shouldPlay = true
-                            AnnouncePartyMessage(string.format("[BFQ] Completed: %s", text or "Objective"))
+                        if not isFinished then
+                            objectiveJustProgressed = true
                         end
+                        AnnouncePartyMessage(string.format("[BFQ] Completed: %s", text or "Objective"))
                     end
                     completedObjectivesCache[key] = true
                 else
                     completedObjectivesCache[key] = false
+                    -- Count increased (e.g. looting 3/4 Raptor Horns)
+                    if wasCount ~= nil and cur > wasCount and not isSuppressed then
+                        objectiveJustProgressed = true
+                    end
                 end
             end
         end
     end
 
-    if not isSuppressed and shouldPlay then
-        SocialModule:PlayCompletionSound()
+    if not isSuppressed then
+        if questJustCompleted then
+            SocialModule:PlayCompletionSound()
+        elseif objectiveJustProgressed then
+            SocialModule:PlayObjectiveSound()
+        end
     end
 end
 
@@ -206,66 +386,9 @@ local function SendSync(msg)
     end
 end
 
--- Broadcast current character's quest progress to the party in compact batches
+-- Broadcast current character's quest progress to the party (disabled)
 function SocialModule:BroadcastMyQuests()
-    local db = ns.db and ns.db.social
-    if not (db and db.enablePartySync) then return end
-    if not (IsInGroup() or (GetNumGroupMembers and GetNumGroupMembers() > 0)) then return end
-
-    local numEntries = (ns.GetNumQuestLogEntries and select(1, ns.GetNumQuestLogEntries())) or (GetNumQuestLogEntries and select(1, GetNumQuestLogEntries())) or 0
-    local haveList = {}
-    local progressList = {}
-
-    for i = 1, numEntries do
-        local title, _, _, isHeader, _, isComplete, _, questID = (ns.GetQuestLogTitle and ns.GetQuestLogTitle(i)) or (GetQuestLogTitle and GetQuestLogTitle(i))
-        if not isHeader and questID then
-            table.insert(haveList, questID)
-
-            local objectives = (ns.GetQuestObjectives and ns.GetQuestObjectives(questID, i)) or {}
-            for j, obj in ipairs(objectives) do
-                local text = obj.text
-                local finished = obj.finished
-                if text then
-                    local cur, maxVal = text:match("(%d+)%s*/%s*(%d+)")
-                    if not cur or not maxVal then
-                        cur = finished and 1 or 0
-                        maxVal = 1
-                    end
-                    table.insert(progressList, string.format("%d:%d:%s:%s:%d", questID, j, cur, maxVal, finished and 1 or 0))
-                end
-            end
-        end
-    end
-
-    -- 1. Batch all active quest IDs into compact message(s) (prevents chat flood throttling)
-    if #haveList > 0 then
-        local chunk = {}
-        for _, qid in ipairs(haveList) do
-            table.insert(chunk, qid)
-            if #chunk >= 25 then
-                SendSync("H:" .. table.concat(chunk, ","))
-                chunk = {}
-            end
-        end
-        if #chunk > 0 then
-            SendSync("H:" .. table.concat(chunk, ","))
-        end
-    end
-
-    -- 2. Batch objective progress updates (up to 6 per packet)
-    if #progressList > 0 then
-        local pChunk = {}
-        for _, pStr in ipairs(progressList) do
-            table.insert(pChunk, pStr)
-            if #pChunk >= 6 then
-                SendSync("PB:" .. table.concat(pChunk, ";"))
-                pChunk = {}
-            end
-        end
-        if #pChunk > 0 then
-            SendSync("PB:" .. table.concat(pChunk, ";"))
-        end
-    end
+    -- Party progress sync disabled
 end
 
 -- Share a specific quest with party members & track manual share state
@@ -281,12 +404,6 @@ function SocialModule:ShareQuest(questID, questLogIndex)
     lastManuallySharedQuestID = questID
     lastManuallySharedTime = GetTime()
 
-    if questID and C_QuestLog and C_QuestLog.IsPushableQuest and C_QuestLog.IsPushableQuest(questID) and C_QuestLog.PushQuestToParty then
-        C_QuestLog.PushQuestToParty(questID)
-        ns.Print("Shared quest with party.")
-        return true
-    end
-
     if not questLogIndex or questLogIndex == 0 then
         local numEntries = (ns.GetNumQuestLogEntries and select(1, ns.GetNumQuestLogEntries())) or (GetNumQuestLogEntries and select(1, GetNumQuestLogEntries())) or 0
         for i = 1, numEntries do
@@ -298,18 +415,50 @@ function SocialModule:ShareQuest(questID, questLogIndex)
         end
     end
 
-    if ns.ShareQuest and ns.ShareQuest(questID, questLogIndex) then
+    -- The default quest log only enables its Share button after the quest has
+    -- been clicked/selected; IsPushableQuest / GetQuestLogPushable both read
+    -- that selection state, so querying them cold reports even shareable
+    -- quests as unshareable. Select the quest first, same as Blizzard's UI does.
+    if questID and C_QuestLog and C_QuestLog.SetSelectedQuest then
+        C_QuestLog.SetSelectedQuest(questID)
+    end
+    if questLogIndex and SelectQuestLogEntry then
+        SelectQuestLogEntry(questLogIndex)
+    end
+
+    -- Determine pushability across modern and classic APIs
+    local isPushable = false
+    if questID and C_QuestLog and C_QuestLog.IsPushableQuest then
+        isPushable = C_QuestLog.IsPushableQuest(questID)
+    end
+    if not isPushable and GetQuestLogPushable then
+        isPushable = GetQuestLogPushable() and true or false
+    end
+    if not isPushable and ns.IsQuestPushable then
+        isPushable = ns.IsQuestPushable(questID, questLogIndex)
+    end
+
+    if not isPushable then
+        ns.Print("This quest cannot be shared.")
+        return false
+    end
+
+    -- Push to party via modern Retail / Midnight API (C_QuestLog.ShareQuest) or legacy QuestLogPushQuest
+    if questID and C_QuestLog and C_QuestLog.ShareQuest then
+        C_QuestLog.ShareQuest(questID)
         ns.Print("Shared quest with party.")
         return true
     end
 
-    if questLogIndex and SelectQuestLogEntry and QuestLogPushQuest then
-        SelectQuestLogEntry(questLogIndex)
-        if (not GetQuestLogPushable) or GetQuestLogPushable() then
-            QuestLogPushQuest()
-            ns.Print("Shared quest with party.")
-            return true
-        end
+    if QuestLogPushQuest then
+        QuestLogPushQuest()
+        ns.Print("Shared quest with party.")
+        return true
+    end
+
+    if ns.ShareQuest and ns.ShareQuest(questID, questLogIndex) then
+        ns.Print("Shared quest with party.")
+        return true
     end
 
     ns.Print("This quest cannot be shared.")
@@ -378,42 +527,34 @@ local function HandleQuestShareSystemFeedback(msg)
     end
 end
 
--- Retrieve party progress formatted summary for an objective
+-- Retrieve party progress formatted summary for an objective (disabled)
 function SocialModule:GetObjectivePartyProgress(questID, objIndex)
-    local qData = ns.partyQuestData and ns.partyQuestData[questID]
-    local oData = qData and qData.objectives and qData.objectives[objIndex]
-    if not oData then return nil end
-
-    local entries = {}
-    local allDone = true
-    local count = 0
-
-    for cleanName, prog in pairs(oData) do
-        if IsMemberInGroup(cleanName) then
-            count = count + 1
-            local nameDisplay = prog.displayName or cleanName
-            if prog.finished then
-                table.insert(entries, string.format("|cff00ff00%s (%d/%d)|r", nameDisplay, prog.max, prog.max))
-            else
-                allDone = false
-                table.insert(entries, string.format("|cff99ccff%s|r (|cffffffff%d/%d|r)", nameDisplay, prog.current, prog.max))
-            end
-        end
-    end
-
-    if count == 0 then return nil end
-
-    if allDone and count > 0 then
-        return "|cff00ff00All Party Complete!|r"
-    end
-
-    return table.concat(entries, ", ")
+    return nil
 end
 
 -- Check if party members are missing this quest and if it can be shared
 function SocialModule:GetMissingPartyInfo(questID, questLogIndex)
     if not (IsInGroup() or (GetNumGroupMembers and GetNumGroupMembers() > 0)) then
         return 0, false
+    end
+
+    if not questLogIndex or questLogIndex == 0 then
+        local numEntries = (ns.GetNumQuestLogEntries and select(1, ns.GetNumQuestLogEntries())) or (GetNumQuestLogEntries and select(1, GetNumQuestLogEntries())) or 0
+        for i = 1, numEntries do
+            local _, _, _, isH, _, _, _, id = (ns.GetQuestLogTitle and ns.GetQuestLogTitle(i)) or (GetQuestLogTitle and GetQuestLogTitle(i))
+            if not isH and id == questID then
+                questLogIndex = i
+                break
+            end
+        end
+    end
+
+    -- Same selection requirement as ShareQuest: IsPushableQuest/GetQuestLogPushable
+    -- report on whichever quest is currently selected, not the questID passed in.
+    if questID and C_QuestLog and C_QuestLog.SetSelectedQuest then
+        C_QuestLog.SetSelectedQuest(questID)
+    elseif questLogIndex and SelectQuestLogEntry then
+        SelectQuestLogEntry(questLogIndex)
     end
 
     local isPushable = false
@@ -423,21 +564,8 @@ function SocialModule:GetMissingPartyInfo(questID, questLogIndex)
     if not isPushable and ns.IsQuestPushable then
         isPushable = ns.IsQuestPushable(questID, questLogIndex)
     end
-    if not isPushable then
-        if not questLogIndex or questLogIndex == 0 then
-            local numEntries = (ns.GetNumQuestLogEntries and select(1, ns.GetNumQuestLogEntries())) or (GetNumQuestLogEntries and select(1, GetNumQuestLogEntries())) or 0
-            for i = 1, numEntries do
-                local _, _, _, isH, _, _, _, id = (ns.GetQuestLogTitle and ns.GetQuestLogTitle(i)) or (GetQuestLogTitle and GetQuestLogTitle(i))
-                if not isH and id == questID then
-                    questLogIndex = i
-                    break
-                end
-            end
-        end
-        if questLogIndex and GetQuestLogPushable and SelectQuestLogEntry then
-            SelectQuestLogEntry(questLogIndex)
-            isPushable = GetQuestLogPushable() and true or false
-        end
+    if not isPushable and questLogIndex and GetQuestLogPushable then
+        isPushable = GetQuestLogPushable() and true or false
     end
     if not isPushable then
         return 0, false
@@ -464,11 +592,26 @@ function SocialModule:GetMissingPartyInfo(questID, questLogIndex)
     return missingCount, isPushable
 end
 
+function SocialModule:UpdateLootEvents()
+    local db = (ns.dbObject and ns.dbObject.profile) or ns.db
+    local fastLoot = db and db.social and db.social.fastAutoLoot ~= false
+    if self.eventFrame then
+        if fastLoot then
+            self.eventFrame:RegisterEvent("LOOT_READY")
+            self.eventFrame:RegisterEvent("LOOT_OPENED")
+        else
+            self.eventFrame:UnregisterEvent("LOOT_READY")
+            self.eventFrame:UnregisterEvent("LOOT_OPENED")
+        end
+    end
+end
+
 --------------------------------------------------------------------------------
 -- EVENT INITIALIZATION
 --------------------------------------------------------------------------------
 function SocialModule:Initialize()
     local eventFrame = CreateFrame("Frame")
+    self.eventFrame = eventFrame
     eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
     eventFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
     eventFrame:RegisterEvent("ZONE_CHANGED")
@@ -481,12 +624,14 @@ function SocialModule:Initialize()
     eventFrame:RegisterEvent("QUEST_GREETING")
     eventFrame:RegisterEvent("QUEST_WATCH_UPDATE")
     eventFrame:RegisterEvent("QUEST_LOG_UPDATE")
+    eventFrame:RegisterEvent("UNIT_QUEST_LOG_CHANGED")
     eventFrame:RegisterEvent("QUEST_REMOVED")
     eventFrame:RegisterEvent("CHAT_MSG_ADDON")
     eventFrame:RegisterEvent("CHAT_MSG_SYSTEM")
     eventFrame:RegisterEvent("UI_INFO_MESSAGE")
     eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
     eventFrame:RegisterEvent("GROUP_LEFT")
+    self:UpdateLootEvents()
     local rosterUpdateTimer = nil
 
     local lastSharedQuestID = nil
@@ -506,20 +651,7 @@ function SocialModule:Initialize()
                 ns.partyQuestData = BleakfiberTrackerDB.partyQuestData
             end
 
-            if IsInGroup() or (GetNumGroupMembers and GetNumGroupMembers() > 0) then
-                C_Timer.After(1.5, function()
-                    if IsInGroup() or (GetNumGroupMembers and GetNumGroupMembers() > 0) then
-                        SendSync("REQ")
-                        SocialModule:BroadcastMyQuests()
-                    end
-                end)
-                C_Timer.After(3.5, function()
-                    if IsInGroup() or (GetNumGroupMembers and GetNumGroupMembers() > 0) then
-                        SendSync("REQ")
-                        SocialModule:BroadcastMyQuests()
-                    end
-                end)
-            else
+            if not (IsInGroup() or (GetNumGroupMembers and GetNumGroupMembers() > 0)) then
                 if BleakfiberTrackerDB then
                     BleakfiberTrackerDB.partyQuestData = {}
                 end
@@ -530,20 +662,24 @@ function SocialModule:Initialize()
         elseif event == "ZONE_CHANGED_NEW_AREA" or event == "ZONE_CHANGED" then
             soundSuppressedUntil = GetTime() + 3.5
             CheckForCompletions()
-
-            if IsInGroup() or (GetNumGroupMembers and GetNumGroupMembers() > 0) then
-                C_Timer.After(1.5, function()
-                    if IsInGroup() or (GetNumGroupMembers and GetNumGroupMembers() > 0) then
-                        SendSync("REQ")
-                        SocialModule:BroadcastMyQuests()
-                    end
-                end)
-            end
             return
         end
 
-        local db = ns.db and ns.db.social
-        if not db then return end
+        local currentDB = (ns.dbObject and ns.dbObject.profile) or ns.db
+        local db = (currentDB and currentDB.social) or {}
+
+        -- Fast Auto Loot
+        if event == "LOOT_READY" or event == "LOOT_OPENED" then
+            if db.fastAutoLoot ~= false and not IsBypassed() then
+                local numLoot = (GetNumLootItems and GetNumLootItems()) or 0
+                if numLoot > 0 then
+                    for i = numLoot, 1, -1 do
+                        LootSlot(i)
+                    end
+                end
+            end
+            return
+        end
 
         -- 1. Auto-Share Quests upon accepting when in a party
         if event == "QUEST_ACCEPTED" then
@@ -564,10 +700,9 @@ function SocialModule:Initialize()
                 end
             end
 
-            -- Update quest completion and party broadcast
+            -- Update quest completion
             C_Timer.After(0.5, function()
                 CheckForCompletions()
-                SocialModule:BroadcastMyQuests()
             end)
 
         -- 2. Auto-Accept Quests (Split: NPC quests and Shared party quests)
@@ -653,15 +788,9 @@ function SocialModule:Initialize()
                 -- If numChoices > 1: pause so player can pick their gear upgrade!
             end
 
-        -- 5. Completion Sound Alerts & Party Sync Broadcast
-        elseif event == "QUEST_WATCH_UPDATE" or event == "QUEST_LOG_UPDATE" then
+        -- 5. Completion Sound Alerts
+        elseif event == "QUEST_WATCH_UPDATE" or event == "QUEST_LOG_UPDATE" or (event == "UNIT_QUEST_LOG_CHANGED" and arg1 == "player") then
             CheckForCompletions()
-
-            local now = GetTime()
-            if (now - lastBroadcastTime) > 1.5 then
-                lastBroadcastTime = now
-                SocialModule:BroadcastMyQuests()
-            end
 
         elseif event == "QUEST_REMOVED" then
             local qid = arg1
@@ -676,75 +805,9 @@ function SocialModule:Initialize()
                 end
             end
 
-        -- 6. Addon Message Communications (Party Quest Sync)
+        -- 6. Addon Message Communications (Party Quest Sync disabled)
         elseif event == "CHAT_MSG_ADDON" then
-            local prefix, msg, channel, sender = arg1, arg2, arg3, arg4
-            if prefix == "BFQ_SYNC" and msg and sender then
-                local cleanSender = CleanName(sender)
-                local cleanPlayer = CleanName(UnitName("player"))
-                if cleanSender ~= "" and cleanSender ~= cleanPlayer then
-                    local displayName = sender:match("^([^-]+)") or sender
-                    displayName = displayName:match("^%s*(.-)%s*$") or displayName
-
-                    if msg:sub(1, 2) == "P:" then
-                        -- Single Objective Progress: P:questID:objIndex:cur:max:finished
-                        local qID, oIdx, cur, mx, fin = msg:sub(3):match("^(%d+):(%d+):(%d+):(%d+):(%d+)")
-                        qID, oIdx = tonumber(qID), tonumber(oIdx)
-                        if qID and oIdx then
-                            ns.partyQuestData[qID] = ns.partyQuestData[qID] or { objectives = {}, have = {} }
-                            ns.partyQuestData[qID].have[cleanSender] = true
-                            ns.partyQuestData[qID].objectives[oIdx] = ns.partyQuestData[qID].objectives[oIdx] or {}
-                            ns.partyQuestData[qID].objectives[oIdx][cleanSender] = {
-                                current = tonumber(cur) or 0,
-                                max = tonumber(mx) or 1,
-                                finished = (fin == "1"),
-                                displayName = displayName,
-                            }
-                            if ns.StandaloneTracker and ns.StandaloneTracker.UpdateTracker then
-                                ns.StandaloneTracker:UpdateTracker()
-                            end
-                        end
-                    elseif msg:sub(1, 3) == "PB:" then
-                        -- Batched Objective Progress: PB:qID:oIdx:cur:mx:fin;qID:oIdx:cur:mx:fin;...
-                        local updated = false
-                        for item in msg:sub(4):gmatch("([^;]+)") do
-                            local qID, oIdx, cur, mx, fin = item:match("^(%d+):(%d+):(%d+):(%d+):(%d+)")
-                            qID, oIdx = tonumber(qID), tonumber(oIdx)
-                            if qID and oIdx then
-                                ns.partyQuestData[qID] = ns.partyQuestData[qID] or { objectives = {}, have = {} }
-                                ns.partyQuestData[qID].have[cleanSender] = true
-                                ns.partyQuestData[qID].objectives[oIdx] = ns.partyQuestData[qID].objectives[oIdx] or {}
-                                ns.partyQuestData[qID].objectives[oIdx][cleanSender] = {
-                                    current = tonumber(cur) or 0,
-                                    max = tonumber(mx) or 1,
-                                    finished = (fin == "1"),
-                                    displayName = displayName,
-                                }
-                                updated = true
-                            end
-                        end
-                        if updated and ns.StandaloneTracker and ns.StandaloneTracker.UpdateTracker then
-                            ns.StandaloneTracker:UpdateTracker()
-                        end
-                    elseif msg:sub(1, 2) == "H:" then
-                        -- Format: H:qid1,qid2,qid3... or single H:qid
-                        local updated = false
-                        for qIDStr in msg:sub(3):gmatch("([^,]+)") do
-                            local qID = tonumber(qIDStr)
-                            if qID then
-                                ns.partyQuestData[qID] = ns.partyQuestData[qID] or { objectives = {}, have = {} }
-                                ns.partyQuestData[qID].have[cleanSender] = true
-                                updated = true
-                            end
-                        end
-                        if updated and ns.StandaloneTracker and ns.StandaloneTracker.UpdateTracker then
-                            ns.StandaloneTracker:UpdateTracker()
-                        end
-                    elseif msg == "REQ" then
-                        SocialModule:BroadcastMyQuests()
-                    end
-                end
-            end
+            -- Party progress sync disabled
 
         -- 7. Blizzard System Feedback for Quest Sharing
         elseif event == "CHAT_MSG_SYSTEM" or event == "UI_INFO_MESSAGE" then
@@ -759,19 +822,11 @@ function SocialModule:Initialize()
             if C_Timer and C_Timer.NewTimer then
                 rosterUpdateTimer = C_Timer.NewTimer(0.5, function()
                     rosterUpdateTimer = nil
-                    if IsInGroup() or (GetNumGroupMembers and GetNumGroupMembers() > 0) then
-                        SendSync("REQ")
-                        SocialModule:BroadcastMyQuests()
-                    end
                     if ns.StandaloneTracker and ns.StandaloneTracker.UpdateTracker then
                         ns.StandaloneTracker:UpdateTracker()
                     end
                 end)
             else
-                if IsInGroup() or (GetNumGroupMembers and GetNumGroupMembers() > 0) then
-                    SendSync("REQ")
-                    SocialModule:BroadcastMyQuests()
-                end
                 if ns.StandaloneTracker and ns.StandaloneTracker.UpdateTracker then
                     ns.StandaloneTracker:UpdateTracker()
                 end

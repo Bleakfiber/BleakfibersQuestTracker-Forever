@@ -8,4 +8,12 @@ desktop.ini
 .idea/
 *.swp
 *.bak
-BleakfiberQuestTracker.zip
+*.zip
+agents.md
+
+
+
+# Deployable addon subfolder (copy-ready, not source)
+BleakfibersQuestTracker-Forever/
+scratch/
+tools/

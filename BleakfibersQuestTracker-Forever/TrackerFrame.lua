@@ -1,5 +1,14 @@
 local addonName, ns = ...
 
+-- Localized Lua & WoW API bindings for performance & garbage reduction
+local pairs, ipairs, type, tostring, tonumber, select, pcall = pairs, ipairs, type, tostring, tonumber, select, pcall
+local string_format = string.format
+local math_floor, math_max, math_min, math_ceil = math.floor, math.max, math.min, math.ceil
+local GetTime = GetTime
+local CreateFrame = CreateFrame
+local IsShiftKeyDown, IsAltKeyDown = IsShiftKeyDown, IsAltKeyDown
+local InCombatLockdown = InCombatLockdown
+
 local Tracker = {}
 ns.Tracker = Tracker
 
@@ -8,16 +17,82 @@ local trackerFrame
 local scrollFrame
 local contentFrame
 
--- Backdrop Definition Helper
+local BG_TEXTURE_PATHS = {
+    ["solid"] = "Interface\\Buttons\\WHITE8x8",
+    ["tooltip"] = "Interface\\Tooltips\\UI-Tooltip-Background",
+    ["marble"] = "Interface\\FrameGeneral\\UI-Background-Marble",
+    ["rock"] = "Interface\\FrameGeneral\\UI-Background-Rock",
+    ["parchment"] = "Interface\\QuestFrame\\QuestBG",
+    ["parchment_clean"] = "Interface\\AchievementFrame\\UI-Achievement-Parchment-Horizontal",
+}
+
 local function GetBackdropConfig()
-    local db = ns.db and ns.db.backdrop or ns.defaultDB.profile.backdrop
+    local db = (ns.db and ns.db.backdrop) or (ns.defaultDB and ns.defaultDB.profile and ns.defaultDB.profile.backdrop)
+    local borderStyle = (db and db.borderStyle) or "flat"
+    local bgTexKey = (db and db.bgTexture) or "solid"
+
+    -- Background texture resolution
+    local bgPath = BG_TEXTURE_PATHS[bgTexKey]
+    if not bgPath then
+        local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
+        bgPath = (LSM and LSM:Fetch("background", bgTexKey, true)) or "Interface\\Buttons\\WHITE8x8"
+    end
+
+    local edgeFile
+    local edgeSize = 1
+    local insets = { left = 0, right = 0, top = 0, bottom = 0 }
+
+    -- Border edge file & insets resolution
+    if borderStyle == "tooltip" then
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border"
+        edgeSize = (db and db.edgeSize) or 16
+        local autoInset = math.max(4, math.floor(edgeSize * 0.28))
+        local ins = (db and db.insets and db.insets > 0) and db.insets or autoInset
+        insets.left, insets.right, insets.top, insets.bottom = ins, ins, ins, ins
+    elseif borderStyle == "dialog" then
+        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border"
+        edgeSize = (db and db.edgeSize) or 16
+        local autoInset = math.max(4, math.floor(edgeSize * 0.28))
+        local ins = (db and db.insets and db.insets > 0) and db.insets or autoInset
+        insets.left, insets.right, insets.top, insets.bottom = ins, ins, ins, ins
+    elseif borderStyle == "toast" then
+        edgeFile = "Interface\\FriendsFrame\\UI-Toast-Border"
+        edgeSize = (db and db.edgeSize) or 12
+        local autoInset = math.max(3, math.floor(edgeSize * 0.25))
+        local ins = (db and db.insets and db.insets > 0) and db.insets or autoInset
+        insets.left, insets.right, insets.top, insets.bottom = ins, ins, ins, ins
+    elseif borderStyle == "thin" then
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border"
+        edgeSize = (db and db.edgeSize) or 12
+        local autoInset = math.max(4, math.floor(edgeSize * 0.32))
+        local ins = (db and db.insets and db.insets > 0) and db.insets or autoInset
+        insets.left, insets.right, insets.top, insets.bottom = ins, ins, ins, ins
+    elseif borderStyle == "none" then
+        edgeFile = nil
+        edgeSize = 0
+        insets.left, insets.right, insets.top, insets.bottom = 0, 0, 0, 0
+    else -- "flat"
+        local bw = (db and db.borderWidth)
+        if bw == nil then bw = (db and db.edgeSize) or 1 end
+        if bw <= 0 then
+            edgeFile = nil
+            edgeSize = 0
+        else
+            edgeFile = "Interface\\Buttons\\WHITE8x8"
+            edgeSize = bw
+        end
+        local ins = (db and db.insets) or 0
+        insets.left, insets.right, insets.top, insets.bottom = ins, ins, ins, ins
+    end
+
+    -- Return a fresh table reference so modern BackdropTemplateMixin never short-circuits on identical pointer
     return {
-        bgFile = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        bgFile = bgPath,
+        edgeFile = edgeFile,
         tile = false,
         tileSize = 0,
-        edgeSize = db.edgeSize or 1,
-        insets = { left = 0, right = 0, top = 0, bottom = 0 }
+        edgeSize = edgeSize,
+        insets = insets,
     }
 end
 
@@ -35,6 +110,8 @@ function Tracker:Initialize()
 
     trackerFrame:SetSize(db.width or 280, 100)
     trackerFrame:SetScale(db.scale or 1.0)
+    trackerFrame:SetFrameStrata("MEDIUM")
+    trackerFrame:SetFrameLevel(10)
     trackerFrame:SetClampedToScreen(true)
     trackerFrame:SetMovable(true)
     trackerFrame:EnableMouse(true)
@@ -46,9 +123,30 @@ function Tracker:Initialize()
 
     -- Smooth Dragging & Position Saving
     local function StartDragging()
-        if ns.db and ns.db.isLocked then return end
+        if ns.db and ns.db.isLocked then
+            -- Shift+Drag bypasses lock for quick repositioning
+            if IsShiftKeyDown() then
+                -- Allow it — fall through
+            else
+                -- Brief notification so the user knows WHY it won't move
+                if not trackerFrame._lastLockMsg or (GetTime() - trackerFrame._lastLockMsg > 3) then
+                    trackerFrame._lastLockMsg = GetTime()
+                    ns.Print("|cffff9900Tracker is locked.|r Hold |cff00ff00Shift|r and drag to move, or type |cff00c0ff/bfq unlock|r")
+                end
+                return
+            end
+        end
         trackerFrame.isMoving = true
         trackerFrame:StartMoving()
+
+        -- Visual drag feedback: subtle highlight border glow
+        if not trackerFrame.dragGlow then
+            local glow = trackerFrame:CreateTexture(nil, "OVERLAY")
+            glow:SetAllPoints(trackerFrame)
+            glow:SetColorTexture(0.0, 0.75, 1.0, 0.12)
+            trackerFrame.dragGlow = glow
+        end
+        trackerFrame.dragGlow:Show()
     end
 
     local function StopDragging()
@@ -56,20 +154,44 @@ function Tracker:Initialize()
         trackerFrame.isMoving = false
         trackerFrame:StopMovingOrSizing()
 
-        local point, _, relativePoint, x, y = trackerFrame:GetPoint()
+        if trackerFrame.dragGlow then
+            trackerFrame.dragGlow:Hide()
+        end
+
+        local uipTop = UIParent:GetTop() or 768
+        local uipRight = UIParent:GetRight() or 1024
+        local top = trackerFrame:GetTop() or uipTop
+        local left = trackerFrame:GetLeft() or 0
+        local right = trackerFrame:GetRight() or uipRight
+
+        -- Always anchor from TOP so the frame strictly expands downward and never creeps into the minimap.
+        -- Choose TOPRIGHT if placed on the right half of the screen, or TOPLEFT if on the left half.
+        local anchorPoint, relX, relY
+        local isRightHalf = (left + (trackerFrame:GetWidth() / 2)) > (uipRight / 2)
+
+        if isRightHalf then
+            anchorPoint = "TOPRIGHT"
+            relX = math.floor((right - uipRight) + 0.5)
+            relY = math.floor((top - uipTop) + 0.5)
+        else
+            anchorPoint = "TOPLEFT"
+            relX = math.floor(left + 0.5)
+            relY = math.floor((top - uipTop) + 0.5)
+        end
+
         local currentDB = (ns.dbObject and ns.dbObject.profile) or ns.db
 
-        if point and x and y and currentDB then
+        if currentDB then
             currentDB.framePosition = {
-                point = point,
-                relativePoint = relativePoint or point,
-                x = math.floor(x + 0.5),
-                y = math.floor(y + 0.5),
+                point = anchorPoint,
+                relativePoint = anchorPoint,
+                x = relX,
+                y = relY,
             }
             ns.db = currentDB
 
             trackerFrame:ClearAllPoints()
-            trackerFrame:SetPoint(point, UIParent, relativePoint or point, currentDB.framePosition.x, currentDB.framePosition.y)
+            trackerFrame:SetPoint(anchorPoint, UIParent, anchorPoint, relX, relY)
             trackerFrame:SetUserPlaced(false)
 
             -- Per-character fail-safe backup
@@ -78,11 +200,28 @@ function Tracker:Initialize()
             end
             _G["BleakfiberTrackerCharDB"].framePosition = currentDB.framePosition
 
-            ns.Debug(string.format("[Drag] Saved: %s relative to %s at (%d, %d)", point, relativePoint or point, currentDB.framePosition.x, currentDB.framePosition.y))
+            if ns.FlushDBToGlobals then
+                ns.FlushDBToGlobals()
+            end
+
+            ns.Debug(string.format("[Drag] Fixed to TOP: %s at (%d, %d)", anchorPoint, relX, relY))
         else
             trackerFrame:SetUserPlaced(false)
         end
+
+        if ns.StandaloneTracker and ns.StandaloneTracker.UpdateItemButton then
+            ns.StandaloneTracker:UpdateItemButton()
+        end
+
+        if ns.FireCallback then
+            ns:FireCallback("TRACKER_DOCKING_CHANGED")
+        end
     end
+
+    self.StartDragging = StartDragging
+    self.StopDragging = StopDragging
+    Tracker.StartDragging = StartDragging
+    Tracker.StopDragging = StopDragging
 
     trackerFrame:SetScript("OnDragStart", StartDragging)
     trackerFrame:SetScript("OnDragStop", StopDragging)
@@ -105,6 +244,7 @@ function Tracker:Initialize()
     -- Header Frame
     local header = CreateFrame("Button", nil, trackerFrame)
     trackerFrame.header = header
+    header:SetFrameLevel(35)
     header:SetHeight(24)
     header:SetPoint("TOPLEFT", trackerFrame, "TOPLEFT", 6, -6)
     header:SetPoint("TOPRIGHT", trackerFrame, "TOPRIGHT", -6, -6)
@@ -120,9 +260,17 @@ function Tracker:Initialize()
 
     -- Header Tooltip with Controls
     header:SetScript("OnEnter", function(self)
+        local _, nQuests = ns.GetNumQuestLogEntries()
+        local mQuests = (C_QuestLog and C_QuestLog.GetMaxNumQuestsCanAccept and C_QuestLog.GetMaxNumQuestsCanAccept()) or MAX_QUESTLOG_QUESTS or 40
         GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT")
         GameTooltip:AddLine("|cff00c0ffBleakfiber's Quest Tracker|r")
-        GameTooltip:AddLine("Left-Click & Drag: Move tracker", 0.8, 0.8, 0.8)
+        GameTooltip:AddLine(string.format("Quest Log Capacity: |cffffffff%d / %d|r", nQuests or 0, mQuests), 0.8, 0.8, 0.8)
+        if trackerFrame and trackerFrame.trackedCount then
+            GameTooltip:AddLine(string.format("Shown in Tracker: |cffffffff%d|r", trackerFrame.trackedCount), 0.8, 0.8, 0.8)
+        end
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("Left-Click & Drag anywhere: Move tracker", 0.8, 0.8, 0.8)
+        GameTooltip:AddLine("|cff00ff00Shift + Drag: Move even when locked|r", 0.2, 1, 0.2)
         GameTooltip:AddLine("Right-Click: Quick Options", 0.8, 0.8, 0.8)
         GameTooltip:AddLine("|cff00ff00Alt + Right-Click: Open Settings|r", 0.2, 1, 0.2)
         GameTooltip:Show()
@@ -171,21 +319,6 @@ function Tracker:Initialize()
     countText:SetJustifyH("LEFT")
     countText:SetWordWrap(false)
     countText:SetText("")
-    countText:EnableMouse(true)
-    countText:SetScript("OnEnter", function(self)
-        local _, nQuests = ns.GetNumQuestLogEntries()
-        local mQuests = (C_QuestLog and C_QuestLog.GetMaxNumQuestsCanAccept and C_QuestLog.GetMaxNumQuestsCanAccept()) or MAX_QUESTLOG_QUESTS or 40
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        GameTooltip:AddLine("Quest Log Capacity", 1, 1, 1)
-        GameTooltip:AddLine(string.format("Quests in Log: |cffffffff%d / %d|r", nQuests or 0, mQuests), 0.8, 0.8, 0.8)
-        if trackerFrame and trackerFrame.trackedCount then
-            GameTooltip:AddLine(string.format("Shown in Tracker: |cffffffff%d|r", trackerFrame.trackedCount), 0.8, 0.8, 0.8)
-        end
-        GameTooltip:Show()
-    end)
-    countText:SetScript("OnLeave", function()
-        GameTooltip:Hide()
-    end)
 
     -- Menu Button [...]
     local menuBtn = CreateFrame("Button", nil, header)
@@ -277,6 +410,12 @@ function Tracker:Initialize()
     questLogBtn:SetHighlightFontObject("GameFontHighlightSmall")
     questLogBtn:SetText("Log")
     questLogBtn:SetScript("OnClick", function()
+        if InCombatLockdown and InCombatLockdown() then
+            if UIErrorsFrame and UIErrorsFrame.AddMessage then
+                UIErrorsFrame:AddMessage(ERR_NOT_IN_COMBAT or "Cannot toggle quest log in combat", 1.0, 0.1, 0.1, 1.0)
+            end
+            return
+        end
         if ToggleQuestLog then
             ToggleQuestLog()
         elseif QuestLogFrame then
@@ -317,13 +456,26 @@ function Tracker:Initialize()
         local step = 28
         local newScroll = math.max(0, math.min(maxScroll, current - (delta * step)))
         self:SetVerticalScroll(newScroll)
+        if ns.StandaloneTracker and ns.StandaloneTracker.UpdateItemButtonVisibility then
+            ns.StandaloneTracker:UpdateItemButtonVisibility()
+        end
+    end)
+    scrollFrame:SetScript("OnScrollRangeChanged", function(self, xrange, yrange)
+        if ns.StandaloneTracker and ns.StandaloneTracker.UpdateItemButtonVisibility then
+            ns.StandaloneTracker:UpdateItemButtonVisibility()
+        end
     end)
 
-    -- Alt + Right-Click to open settings from scroll area
+    -- Alt + Right-Click to open settings from scroll area, Drag anywhere to reposition
     scrollFrame:EnableMouse(true)
+    scrollFrame:RegisterForDrag("LeftButton")
+    scrollFrame:SetScript("OnDragStart", StartDragging)
+    scrollFrame:SetScript("OnDragStop", StopDragging)
     scrollFrame:SetScript("OnMouseUp", function(self, button)
         if button == "RightButton" and IsAltKeyDown() then
             if ns.Config then ns.Config:ToggleConfigFrame() end
+        elseif button == "LeftButton" and trackerFrame.isMoving then
+            StopDragging()
         end
     end)
 
@@ -332,6 +484,17 @@ function Tracker:Initialize()
     self.contentFrame = contentFrame
     contentFrame:SetWidth(trackerFrame:GetWidth() - 12)
     contentFrame:SetHeight(1)
+    contentFrame:EnableMouse(true)
+    contentFrame:EnableMouseWheel(true)
+    contentFrame:SetScript("OnMouseWheel", function(self, delta)
+        local onWheel = scrollFrame and scrollFrame:GetScript("OnMouseWheel")
+        if onWheel then
+            onWheel(scrollFrame, delta)
+        end
+    end)
+    contentFrame:RegisterForDrag("LeftButton")
+    contentFrame:SetScript("OnDragStart", StartDragging)
+    contentFrame:SetScript("OnDragStop", StopDragging)
     scrollFrame:SetScrollChild(contentFrame)
 
     -- Apply Saved Visuals
@@ -372,24 +535,88 @@ function Tracker:UpdateBackdrop()
     if not trackerFrame then return end
     local db = ns.db and ns.db.backdrop or ns.defaultDB.profile.backdrop
 
+    if trackerFrame.ClearBackdrop then
+        trackerFrame:ClearBackdrop()
+    end
+    trackerFrame.backdropInfo = nil
+
     if db.show then
-        trackerFrame:SetBackdrop(GetBackdropConfig())
+        local cfg = GetBackdropConfig()
         local bg = db.bgColor or { r = 0.05, g = 0.05, b = 0.05, a = 0.65 }
         local border = db.borderColor or { r = 0.15, g = 0.15, b = 0.15, a = 0.9 }
-        trackerFrame:SetBackdropColor(bg.r, bg.g, bg.b, bg.a)
-        trackerFrame:SetBackdropBorderColor(border.r, border.g, border.b, border.a)
+        local br, bg_c, bb, ba = border.r, border.g, border.b, (border.a or 0.9)
+        if db.classColorBorder and ns.GetClassColor then
+            local cc = ns.GetClassColor()
+            if cc then
+                br, bg_c, bb = cc.r, cc.g, cc.b
+            end
+        end
+
+        local bgTexKey = (db and db.bgTexture) or "solid"
+        if bgTexKey == "parchment" or bgTexKey == "parchment_clean" then
+            if not trackerFrame.parchmentTex then
+                local tex = trackerFrame:CreateTexture(nil, "BACKGROUND", nil, -7)
+                trackerFrame.parchmentTex = tex
+            end
+            local ins = (cfg.insets and cfg.insets.left) or 4
+            trackerFrame.parchmentTex:ClearAllPoints()
+            trackerFrame.parchmentTex:SetPoint("TOPLEFT", trackerFrame, "TOPLEFT", ins, -ins)
+            trackerFrame.parchmentTex:SetPoint("BOTTOMRIGHT", trackerFrame, "BOTTOMRIGHT", -ins, ins)
+            if bgTexKey == "parchment_clean" then
+                trackerFrame.parchmentTex:SetTexture("Interface\\AchievementFrame\\UI-Achievement-Parchment-Horizontal")
+                trackerFrame.parchmentTex:SetTexCoord(0, 1, 0, 1)
+            else
+                trackerFrame.parchmentTex:SetTexture("Interface\\QuestFrame\\QuestBG")
+                -- QuestBG artwork is 300x380 px on a 512x512 canvas (X: 0 to 0.5859, Y: 0 to 0.7422).
+                -- Normalized crop (0.005, 0.582, 0.020, 0.650) extracts 100% solid parchment,
+                -- eliminating transparent right/bottom margins and curled/torn scroll edges so it spans 100% of the frame.
+                trackerFrame.parchmentTex:SetTexCoord(0.005, 0.582, 0.020, 0.650)
+            end
+            trackerFrame.parchmentTex:SetVertexColor(bg.r, bg.g, bg.b, bg.a)
+            trackerFrame.parchmentTex:Show()
+
+            cfg.bgFile = nil
+            trackerFrame:SetBackdrop(cfg)
+            trackerFrame:SetBackdropColor(0, 0, 0, 0)
+        else
+            if trackerFrame.parchmentTex then
+                trackerFrame.parchmentTex:Hide()
+            end
+            trackerFrame:SetBackdrop(cfg)
+            trackerFrame:SetBackdropColor(bg.r, bg.g, bg.b, bg.a)
+        end
+
+        if cfg.edgeFile then
+            trackerFrame:SetBackdropBorderColor(br, bg_c, bb, ba)
+        else
+            trackerFrame:SetBackdropBorderColor(0, 0, 0, 0)
+        end
     else
+        if trackerFrame.parchmentTex then
+            trackerFrame.parchmentTex:Hide()
+        end
         trackerFrame:SetBackdrop(nil)
+    end
+
+    if ns.DataBarsModule and ns.DataBarsModule.RefreshBars then
+        ns.DataBarsModule:RefreshBars()
     end
 end
 
 function Tracker:ApplyHeaderSettings()
     if not trackerFrame or not trackerFrame.header then return end
     local header = trackerFrame.header
+    header:SetFrameLevel(35)
     local db = ns.db or ns.defaultDB.profile
     local hCfg = db.headers or ns.defaultDB.profile.headers
 
     local borderColor = (db.backdrop and db.backdrop.borderColor) or { r = 0.15, g = 0.15, b = 0.15, a = 0.9 }
+    if db.backdrop and db.backdrop.classColorBorder and ns.GetClassColor then
+        local cc = ns.GetClassColor()
+        if cc then
+            borderColor = { r = cc.r, g = cc.g, b = cc.b, a = borderColor.a or 0.9 }
+        end
+    end
     local bgrColor = hCfg.textureColorShare and borderColor or (hCfg.textureColor or { r = 0.05, g = 0.08, b = 0.12, a = 0.85 })
     local txtColor = hCfg.textColorShare and borderColor or (hCfg.textColor or (ns.GetClassColor and ns.GetClassColor()) or { r = 0.0, g = 0.75, b = 1.0 })
     local btnColor = hCfg.buttonColorShare and borderColor or (hCfg.buttonColor or (ns.GetClassColor and ns.GetClassColor()) or { r = 0.0, g = 0.75, b = 1.0 })
@@ -646,6 +873,9 @@ function Tracker:CreateConfigOverlay()
             if ACR then
                 ACR:NotifyChange("BleakfiberQuestTracker")
             end
+            if ns.FlushDBToGlobals then
+                ns.FlushDBToGlobals()
+            end
         end
     end
 
@@ -720,9 +950,11 @@ function Tracker:HideConfigOverlay()
         ACR:NotifyChange("BleakfiberQuestTracker")
     end
     if ns.db and ns.db.filtering and ns.db.filtering.autoHideEmpty then
-        if ns.StandaloneTracker and ns.StandaloneTracker.GetTrackedQuests then
-            local quests = ns.StandaloneTracker:GetTrackedQuests()
-            if #quests == 0 and trackerFrame then
+        local filtering = ns.db.filtering
+        local isFiltering = filtering.filterMode == "zone" or filtering.zoneOnly or filtering.filterMode == "watched" or filtering.watchedOnly
+        if not isFiltering then
+            local _, numQuests = ns.GetNumQuestLogEntries()
+            if (numQuests or 0) == 0 and trackerFrame then
                 trackerFrame:Hide()
             end
         end
@@ -738,25 +970,93 @@ function Tracker:UpdateTypography()
     if not db then return end
     local fonts = db.fonts or ns.defaultDB.profile.fonts
     local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
-    local fontName = fonts.font or fonts.headerFont or "Friz Quadrata TT"
-    local fontPath = (LSM and LSM:Fetch("font", fontName, true)) or STANDARD_TEXT_FONT
+    local headerFontName = fonts.headerFont or fonts.font or "Nata Sans Bold"
+    local headerFontPath = (ns.FetchFont and ns.FetchFont(headerFontName))
+        or (LSM and LSM:Fetch("font", headerFontName, true))
+        or ns.DEFAULT_HEADER_FONT_PATH
+        or ns.DEFAULT_FONT_PATH
+        or STANDARD_TEXT_FONT
+
+    local objectiveFontName = fonts.objectiveFont or "Nata Sans Regular"
+    local objectiveFontPath = (ns.FetchFont and ns.FetchFont(objectiveFontName))
+        or (LSM and LSM:Fetch("font", objectiveFontName, true))
+        or ns.DEFAULT_OBJECTIVE_FONT_PATH
+        or headerFontPath
+        or STANDARD_TEXT_FONT
+
     local titleSize = fonts.headerSize or 13
     local objSize = fonts.objectiveSize or 11
-    local outline = fonts.headerOutline or "OUTLINE"
+    local zoneSize = fonts.zoneHeaderSize or math.max(10, titleSize - 1)
+    local enableShadow = fonts.enableTextShadow ~= false
+    local outline = fonts.headerOutline
+    if not outline or outline == "NONE" or outline == "" then
+        outline = nil
+    end
+    local objOutline = fonts.objectiveOutline
+    if not objOutline or objOutline == "NONE" or objOutline == "" then
+        objOutline = nil
+    end
 
     if trackerFrame and trackerFrame.header then
         if trackerFrame.header.titleText then
-            trackerFrame.header.titleText:SetFont(fontPath, titleSize, outline)
+            if outline then
+                trackerFrame.header.titleText:SetFont(headerFontPath, titleSize, outline)
+            else
+                trackerFrame.header.titleText:SetFont(headerFontPath, titleSize)
+            end
+            if enableShadow then
+                trackerFrame.header.titleText:SetShadowColor(0, 0, 0, 0.85)
+                trackerFrame.header.titleText:SetShadowOffset(1, -1)
+            else
+                trackerFrame.header.titleText:SetShadowOffset(0, 0)
+            end
             trackerFrame.header:SetHeight(math.max(24, titleSize + 8))
         end
         if trackerFrame.header.countText then
-            trackerFrame.header.countText:SetFont(fontPath, math.max(9, titleSize - 2), outline)
+            if outline then
+                trackerFrame.header.countText:SetFont(headerFontPath, math.max(9, titleSize - 2), outline)
+            else
+                trackerFrame.header.countText:SetFont(headerFontPath, math.max(9, titleSize - 2))
+            end
+            if enableShadow then
+                trackerFrame.header.countText:SetShadowColor(0, 0, 0, 0.85)
+                trackerFrame.header.countText:SetShadowOffset(1, -1)
+            else
+                trackerFrame.header.countText:SetShadowOffset(0, 0)
+            end
         end
     end
 
     if ns.StandaloneTracker and ns.StandaloneTracker.ApplyTypography then
-        ns.StandaloneTracker:ApplyTypography(fontPath, titleSize, objSize, outline)
+        ns.StandaloneTracker:ApplyTypography(headerFontPath, objectiveFontPath, titleSize, objSize, outline, objOutline, zoneSize, enableShadow)
     end
+    if ns.DataBarsModule and ns.DataBarsModule.ApplyTypography then
+        ns.DataBarsModule:ApplyTypography(headerFontPath)
+    end
+    if ns.WayfinderModule and ns.WayfinderModule.ApplyTypography then
+        ns.WayfinderModule:ApplyTypography(headerFontPath)
+    end
+end
+
+function Tracker:GetDefaultPosition()
+    local uipTop = UIParent:GetTop() or 768
+    local minimapBottom
+    if Minimap and Minimap.GetBottom and Minimap:GetBottom() then
+        minimapBottom = Minimap:GetBottom()
+    elseif MinimapCluster and MinimapCluster.GetBottom and MinimapCluster:GetBottom() then
+        minimapBottom = MinimapCluster:GetBottom()
+    end
+
+    local yOfs
+    if minimapBottom and uipTop then
+        -- 35px below the bottom of the minimap
+        yOfs = math.floor((minimapBottom - 35) - uipTop + 0.5)
+    else
+        yOfs = -220
+    end
+
+    -- Farthest right of the screen (0px offset from right edge)
+    return "TOPRIGHT", 0, yOfs
 end
 
 function Tracker:RestorePosition()
@@ -769,15 +1069,47 @@ function Tracker:RestorePosition()
     local pos = (db and db.framePosition) 
         or (_G["BleakfiberTrackerCharDB"] and _G["BleakfiberTrackerCharDB"].framePosition)
 
-    if pos and pos.point and pos.x and pos.y then
+    -- If position is the legacy default (-250, -200) or missing, update to the new default (farthest right, 35px below minimap)
+    local isLegacyDefault = pos and (pos.x == -250 and pos.y == -200)
+
+    if pos and pos.point and pos.x and pos.y and not isLegacyDefault then
         if db and not db.framePosition then
             db.framePosition = pos
         end
-        trackerFrame:SetPoint(pos.point, UIParent, pos.relativePoint or pos.point, pos.x, pos.y)
-        ns.Debug(string.format("[Restore] Set %s relative to %s at (%d, %d)", pos.point, pos.relativePoint or pos.point, pos.x, pos.y))
+
+        -- Ensure anchor is ALWAYS TOPLEFT or TOPRIGHT so the frame exclusively grows downward
+        if pos.point ~= "TOPLEFT" and pos.point ~= "TOPRIGHT" then
+            trackerFrame:SetPoint(pos.point, UIParent, pos.relativePoint or pos.point, pos.x, pos.y)
+
+            local uipTop = UIParent:GetTop() or 768
+            local uipRight = UIParent:GetRight() or 1024
+            local top = trackerFrame:GetTop() or (uipTop - 200)
+            local right = trackerFrame:GetRight() or (uipRight - 250)
+            local left = trackerFrame:GetLeft() or 0
+
+            local isRight = (pos.point:find("RIGHT") ~= nil) or ((left + (trackerFrame:GetWidth() / 2)) > (uipRight / 2))
+            local newPoint = isRight and "TOPRIGHT" or "TOPLEFT"
+            local newX = isRight and math.floor((right - uipRight) + 0.5) or math.floor(left + 0.5)
+            local newY = math.floor((top - uipTop) + 0.5)
+
+            pos.point = newPoint
+            pos.relativePoint = newPoint
+            pos.x = newX
+            pos.y = newY
+            if db then db.framePosition = pos end
+            if _G["BleakfiberTrackerCharDB"] then _G["BleakfiberTrackerCharDB"].framePosition = pos end
+
+            trackerFrame:ClearAllPoints()
+            trackerFrame:SetPoint(newPoint, UIParent, newPoint, newX, newY)
+            ns.Debug(string.format("[Restore Sanitized] Converted legacy anchor to %s at (%d, %d)", newPoint, newX, newY))
+        else
+            trackerFrame:SetPoint(pos.point, UIParent, pos.relativePoint or pos.point, pos.x, pos.y)
+            ns.Debug(string.format("[Restore] Set %s relative to %s at (%d, %d)", pos.point, pos.relativePoint or pos.point, pos.x, pos.y))
+        end
     else
-        trackerFrame:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -250, -200)
-        ns.Debug("[Restore Fallback] Set default TOPRIGHT -250, -200")
+        local defPoint, defX, defY = self:GetDefaultPosition()
+        trackerFrame:SetPoint(defPoint, UIParent, defPoint, defX, defY)
+        ns.Debug(string.format("[Restore Default] Set %s at (%d, %d) [35px below minimap, farthest right]", defPoint, defX, defY))
     end
     trackerFrame:SetUserPlaced(false)
 end
@@ -807,6 +1139,9 @@ function Tracker:ResetPosition()
     if self.UpdateConfigOverlay then
         self:UpdateConfigOverlay()
     end
+    if ns.FlushDBToGlobals then
+        ns.FlushDBToGlobals()
+    end
     ns.Print("Tracker position reset to default.")
 end
 
@@ -834,10 +1169,17 @@ function Tracker:UpdateSettings()
     if ns.StandaloneTracker and ns.StandaloneTracker.UpdateTracker then
         ns.StandaloneTracker:UpdateTracker()
     end
+
+    if ns.FireCallback then
+        ns:FireCallback("TRACKER_DOCKING_CHANGED")
+    end
 end
 
 function Tracker:SetLocked(locked)
     ns.db.isLocked = locked
+    if ns.FlushDBToGlobals then
+        ns.FlushDBToGlobals()
+    end
     if locked then
         ns.Print("Tracker locked.")
     else
@@ -883,6 +1225,14 @@ function Tracker:ToggleCollapse()
     end
 
     self:ApplyHeaderSettings()
+
+    if ns.StandaloneTracker and ns.StandaloneTracker.UpdateItemButton then
+        ns.StandaloneTracker:UpdateItemButton()
+    end
+
+    if ns.FireCallback then
+        ns:FireCallback("TRACKER_DOCKING_CHANGED")
+    end
 end
 
 function Tracker:CheckInstanceAutoCollapse()
@@ -898,14 +1248,38 @@ end
 function Tracker:UpdateHeight(contentHeight)
     if not trackerFrame or self.isCollapsed then return end
     local db = ns.db
-    local headerH = trackerFrame.header:GetHeight()
+    local header = trackerFrame.header
+    local headerH = header and header:GetHeight() or 24
+    local prevHeight = trackerFrame:GetHeight()
+
+    if (contentHeight or 0) <= 0 then
+        -- No quests to display: collapse down to just the frame header bar
+        if scrollFrame then scrollFrame:Hide() end
+        local newH = headerH + 12
+        trackerFrame:SetHeight(newH)
+        if contentFrame then contentFrame:SetHeight(1) end
+        if prevHeight ~= newH and ns.FireCallback then
+            ns:FireCallback("TRACKER_DOCKING_CHANGED")
+        end
+        return
+    end
+
+    if scrollFrame and not scrollFrame:IsShown() then
+        scrollFrame:Show()
+    end
+
     local pad = 16
     local totalNeeded = contentHeight + headerH + pad
     local maxAllowed = db.maxHeight or 600
 
     local finalHeight = math.min(maxAllowed, totalNeeded)
-    trackerFrame:SetHeight(math.max(finalHeight, headerH + pad))
+    local targetHeight = math.max(finalHeight, headerH + pad)
+    trackerFrame:SetHeight(targetHeight)
     contentFrame:SetHeight(contentHeight)
+
+    if prevHeight ~= targetHeight and ns.FireCallback then
+        ns:FireCallback("TRACKER_DOCKING_CHANGED")
+    end
 end
 
 function Tracker:SetQuestCount(trackedCount, numQuests, maxQuests)
@@ -946,13 +1320,58 @@ function Tracker:SetQuestCount(trackedCount, numQuests, maxQuests)
         end
     end
 
-    -- Auto-hide when empty if configured
-    if ns.db and ns.db.filtering.autoHideEmpty then
-        if (trackedCount or 0) == 0 then
-            trackerFrame:Hide()
+    local isCombatHidden = ns.db and ns.db.filtering and ns.db.filtering.hideInCombat and (InCombatLockdown and InCombatLockdown())
+    if isCombatHidden then
+        trackerFrame:Hide()
+        return
+    end
+
+    -- Auto-hide when empty if configured (outside combat only to prevent ADDON_ACTION_BLOCKED)
+    local filtering = ns.db and ns.db.filtering or {}
+    local isFiltering = filtering.filterMode == "zone" or filtering.zoneOnly or filtering.filterMode == "watched" or filtering.watchedOnly
+
+    if not InCombatLockdown() then
+        if isFiltering and (trackedCount or 0) == 0 then
+            -- When filtering (e.g. Current Zone) and no quests match, NEVER disappear entirely;
+            -- keep visible and collapsed down to just the frame header so the user can switch filters.
+            trackerFrame:Show()
+        elseif filtering.autoHideEmpty then
+            if (trackedCount or 0) == 0 and (numQuests or 0) == 0 then
+                trackerFrame:Hide()
+            else
+                trackerFrame:Show()
+            end
         else
             trackerFrame:Show()
         end
+    end
+end
+
+function Tracker:UpdateVisibility()
+    if not trackerFrame then return end
+    local db = ns.db or ns.defaultDB.profile
+    local filtering = db.filtering or {}
+
+    if filtering.hideInCombat and (InCombatLockdown and InCombatLockdown()) then
+        trackerFrame:Hide()
+        if ns.StandaloneTracker and ns.StandaloneTracker.itemButton then
+            ns.StandaloneTracker.itemButton:SetAlpha(0)
+        end
+        return
+    end
+
+    local isFiltering = filtering.filterMode == "zone" or filtering.zoneOnly or filtering.filterMode == "watched" or filtering.watchedOnly
+    if filtering.autoHideEmpty and not isFiltering then
+        local _, numQuests = ns.GetNumQuestLogEntries()
+        if (numQuests or 0) == 0 then
+            trackerFrame:Hide()
+            return
+        end
+    end
+
+    trackerFrame:Show()
+    if ns.StandaloneTracker and ns.StandaloneTracker.itemButton then
+        ns.StandaloneTracker.itemButton:SetAlpha(1)
     end
 end
 

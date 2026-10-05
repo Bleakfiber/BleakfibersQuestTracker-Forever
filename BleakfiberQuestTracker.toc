@@ -1,2 +1,0 @@
-# OBSOLETE: This file has been deprecated and replaced by BleakfibersQuestTracker-Forever.toc
-# Do not add ## Interface here so WoW does not treat this as a duplicate addon.
