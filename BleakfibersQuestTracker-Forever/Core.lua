@@ -46,7 +46,7 @@ ns.addonName = addonName
 ns.title = "|cff00c0ffBleakfiber's Quest Tracker - Forever|r"
 ns.version = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(addonName, "Version")) 
     or (GetAddOnMetadata and GetAddOnMetadata(addonName, "Version")) 
-    or "1.0.15"
+    or "1.0.16"
 
 -- Public Module API & Global Exports for Centralized Config Addons
 local PublicAPI = _G["BleakfibersQuestTrackerForever"] or {}
@@ -110,7 +110,7 @@ function PublicAPI:RegisterWithMasterConfig()
         BleakfibersAddonConfigForever:RegisterModule("BleakfibersQuestTracker", {
             id = "BleakfibersQuestTracker",
             name = "Quest Tracker",
-            version = ns.version or "1.0.15",
+            version = ns.version or "1.0.16",
             db = ns.db or _G["BleakfiberTrackerDB"],
             getDB = function() return ns.db or _G["BleakfiberTrackerDB"] end,
             refresh = function()

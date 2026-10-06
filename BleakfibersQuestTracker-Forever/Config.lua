@@ -4275,175 +4275,251 @@ function Config:InitializeOptions()
     end
 end
 
-function Config:ToggleConfigFrame()
+-- ---------------------------------------------------------------------------
+-- Master Config Addon Integration & Dark Slate / Gold Standalone Theme
+-- ---------------------------------------------------------------------------
+
+local BACKDROP_TEMPLATE = BackdropTemplateMixin and "BackdropTemplate" or nil
+
+local MAIN_WINDOW_BACKDROP = {
+    bgFile = "Interface\\Buttons\\WHITE8X8",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true,
+    tileSize = 16,
+    edgeSize = 16,
+    insets = { left = 4, right = 4, top = 4, bottom = 4 }
+}
+
+local INSET_BACKDROP = {
+    bgFile = "Interface\\Buttons\\WHITE8X8",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true,
+    tileSize = 12,
+    edgeSize = 12,
+    insets = { left = 3, right = 3, top = 3, bottom = 3 }
+}
+
+local COLORS = {
+    bgSlate      = { 0.08, 0.10, 0.13, 0.96 }, -- Dark iron / slate
+    sidebarBg    = { 0.06, 0.07, 0.09, 0.92 }, -- Deep inset background
+    contentBg    = { 0.05, 0.06, 0.08, 0.94 }, -- Dark content background
+    goldBorder   = { 0.82, 0.68, 0.28, 1.00 }, -- Bright beveled gold
+    goldMuted    = { 0.50, 0.42, 0.20, 0.85 }, -- Muted gold border
+    goldText     = { 1.00, 0.82, 0.25 },       -- #FFD140
+    whiteText    = { 0.90, 0.92, 0.94 },
+    dimText      = { 0.55, 0.58, 0.63 },
+    tabNormal    = { 0.12, 0.14, 0.17, 0.65 },
+    tabHighlight = { 0.20, 0.22, 0.27, 0.80 },
+    tabActive    = { 0.22, 0.19, 0.12, 0.95 }, -- Gold-tinted active tab
+}
+
+function Config:EmbedOptionsIntoContainer(containerFrame)
+    if not containerFrame then return end
+
     if not self.initialized then
         self:InitializeOptions()
     end
-    if ns.SetupColorPickerEnhancements then
-        ns.SetupColorPickerEnhancements()
+
+    local AceGUI = LibStub and LibStub("AceGUI-3.0", true)
+    if not (AceGUI and ACD) then return end
+
+    local aceContainer = containerFrame.aceContainer
+    if not aceContainer then
+        aceContainer = AceGUI:Create("SimpleGroup")
+        aceContainer.frame:SetParent(containerFrame)
+        aceContainer.frame:ClearAllPoints()
+        aceContainer.frame:SetPoint("TOPLEFT", containerFrame, "TOPLEFT", 0, 0)
+        aceContainer.frame:SetPoint("BOTTOMRIGHT", containerFrame, "BOTTOMRIGHT", 0, 0)
+        aceContainer:SetLayout("Fill")
+        aceContainer.frame:Show()
+        containerFrame.aceContainer = aceContainer
+
+        containerFrame:HookScript("OnSizeChanged", function(self, w, h)
+            if self.aceContainer and self.aceContainer.frame:IsShown() then
+                self.aceContainer:SetWidth(w)
+                self.aceContainer:SetHeight(h)
+                self.aceContainer:DoLayout()
+            end
+        end)
     end
 
-    if ACD then
-        if ACD.OpenFrames and ACD.OpenFrames["BleakfiberQuestTracker"] then
-            ACD:Close("BleakfiberQuestTracker")
-            if ns.Tracker and ns.Tracker.HideConfigOverlay then
-                ns.Tracker:HideConfigOverlay()
-            end
-        else
-            ACD:Open("BleakfiberQuestTracker")
-            local f = ACD.OpenFrames and ACD.OpenFrames["BleakfiberQuestTracker"]
-            if f and f.frame then
-                f.frame:SetClampedToScreen(true)
+    ACD:Open("BleakfiberQuestTracker", aceContainer)
+    if aceContainer.DoLayout then
+        aceContainer:DoLayout()
+    end
+end
 
-                -- Register frame in UISpecialFrames so pressing ESC automatically closes it
-                _G["BleakfiberConfigFrame"] = f.frame
-                local inSpecial = false
-                for _, name in ipairs(UISpecialFrames) do
-                    if name == "BleakfiberConfigFrame" then
-                        inSpecial = true
-                        break
-                    end
-                end
-                if not inSpecial then
-                    table.insert(UISpecialFrames, "BleakfiberConfigFrame")
-                end
+function Config:GetOrCreateStandaloneFrame()
+    if self.standaloneFrame then return self.standaloneFrame end
 
-                if not f.frame.__bfqHooked then
-                    f.frame.__bfqHooked = true
+    local db = (ns.db and ns.db.configWindow) or {}
+    local width = db.width or 820
+    local height = db.height or 580
+    local point = db.point or "CENTER"
+    local relPoint = db.relativePoint or "CENTER"
+    local xOfs = db.xOfs or 0
+    local yOfs = db.yOfs or 0
 
-                    -- OnHide cleanup ensures overlay is hidden whenever this frame closes
-                    f.frame:HookScript("OnHide", function()
-                        if ns.Tracker and ns.Tracker.HideConfigOverlay then
-                            ns.Tracker:HideConfigOverlay()
-                        end
-                        if ACD and ACD.Close then
-                            ACD:Close("BleakfiberQuestTracker")
-                        end
-                    end)
-                end
-            end
+    local f = CreateFrame("Frame", "BleakfibersStandaloneConfigFrame", UIParent, BACKDROP_TEMPLATE)
+    f:SetSize(width, height)
+    f:SetPoint(point, UIParent, relPoint, xOfs, yOfs)
+    f:SetFrameStrata("HIGH")
+    f:SetToplevel(true)
+    f:SetClampedToScreen(true)
+    f:EnableMouse(true)
+    f:SetMovable(true)
+    f:SetResizable(true)
+
+    tinsert(UISpecialFrames, "BleakfibersStandaloneConfigFrame")
+
+    if f.SetResizeBounds then
+        f:SetResizeBounds(640, 420, 1200, 850)
+    else
+        f:SetMinResize(640, 420)
+        f:SetMaxResize(1200, 850)
+    end
+
+    f:SetBackdrop(MAIN_WINDOW_BACKDROP)
+    f:SetBackdropColor(unpack(COLORS.bgSlate))
+    f:SetBackdropBorderColor(unpack(COLORS.goldBorder))
+
+    -- Title Bar Area (Draggable)
+    local titleBar = CreateFrame("Frame", nil, f)
+    titleBar:SetHeight(32)
+    titleBar:SetPoint("TOPLEFT", f, "TOPLEFT", 6, -6)
+    titleBar:SetPoint("TOPRIGHT", f, "TOPRIGHT", -32, -6)
+    titleBar:EnableMouse(true)
+    titleBar:RegisterForDrag("LeftButton")
+
+    titleBar:SetScript("OnDragStart", function()
+        f:StartMoving()
+    end)
+
+    titleBar:SetScript("OnDragStop", function()
+        f:StopMovingOrSizing()
+        local pt, _, relPt, x, y = f:GetPoint()
+        if ns.db then
+            ns.db.configWindow = ns.db.configWindow or {}
+            ns.db.configWindow.point = pt
+            ns.db.configWindow.relativePoint = relPt or pt
+            ns.db.configWindow.xOfs = math.floor(x + 0.5)
+            ns.db.configWindow.yOfs = math.floor(y + 0.5)
+            if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
         end
+    end)
+
+    -- Title Icon / Emblem
+    local titleIcon = titleBar:CreateTexture(nil, "ARTWORK")
+    titleIcon:SetSize(18, 18)
+    titleIcon:SetPoint("LEFT", titleBar, "LEFT", 6, 0)
+    titleIcon:SetTexture("Interface\\Icons\\INV_Misc_Book_07")
+    titleIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+
+    -- Title Text
+    local titleText = titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    titleText:SetPoint("LEFT", titleIcon, "RIGHT", 8, 0)
+    titleText:SetText("|cFFFFD100Bleakfiber's Quest Tracker|r  |cFF8899A6Forever|r")
+
+    -- Version Subtitle
+    local versionText = titleBar:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    versionText:SetPoint("LEFT", titleText, "RIGHT", 8, -1)
+    versionText:SetText("v" .. (ns.version or "1.0.16"))
+
+    -- Gold Divider below Title Bar
+    local titleDivider = f:CreateTexture(nil, "ARTWORK")
+    titleDivider:SetHeight(1)
+    titleDivider:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -36)
+    titleDivider:SetPoint("TOPRIGHT", f, "TOPRIGHT", -8, -36)
+    titleDivider:SetColorTexture(COLORS.goldBorder[1], COLORS.goldBorder[2], COLORS.goldBorder[3], 0.6)
+
+    -- Close Button
+    local closeBtn = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+    closeBtn:SetSize(28, 28)
+    closeBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", -4, -4)
+    closeBtn:SetScript("OnClick", function()
+        f:Hide()
+    end)
+
+    -- Bottom-right Resize Grip
+    local resizeGrip = CreateFrame("Button", nil, f)
+    resizeGrip:SetSize(16, 16)
+    resizeGrip:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -4, 4)
+    resizeGrip:EnableMouse(true)
+
+    local gripTex = resizeGrip:CreateTexture(nil, "ARTWORK")
+    gripTex:SetAllPoints(resizeGrip)
+    gripTex:SetTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+
+    resizeGrip:SetScript("OnEnter", function()
+        gripTex:SetTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+    end)
+    resizeGrip:SetScript("OnLeave", function()
+        gripTex:SetTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+    end)
+    resizeGrip:SetScript("OnMouseDown", function(_, button)
+        if button == "LeftButton" then
+            f:StartSizing("BOTTOMRIGHT")
+        end
+    end)
+    resizeGrip:SetScript("OnMouseUp", function()
+        f:StopMovingOrSizing()
+        if ns.db then
+            ns.db.configWindow = ns.db.configWindow or {}
+            ns.db.configWindow.width = math.floor(f:GetWidth() + 0.5)
+            ns.db.configWindow.height = math.floor(f:GetHeight() + 0.5)
+            if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
+        end
+    end)
+
+    -- Footer hint text
+    local footerText = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    footerText:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 12, 8)
+    footerText:SetText("|cFF667788Use /bfq or /bqt to toggle this window|r")
+
+    -- Content Pane (Houses the full options tabs)
+    local contentPane = CreateFrame("Frame", nil, f, BACKDROP_TEMPLATE)
+    contentPane:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -42)
+    contentPane:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -10, 24)
+    contentPane:SetBackdrop(INSET_BACKDROP)
+    contentPane:SetBackdropColor(unpack(COLORS.contentBg))
+    contentPane:SetBackdropBorderColor(unpack(COLORS.goldMuted))
+    f.contentPane = contentPane
+
+    f:SetScript("OnShow", function()
+        if not self.initialized then
+            self:InitializeOptions()
+        end
+        if ns.SetupColorPickerEnhancements then
+            ns.SetupColorPickerEnhancements()
+        end
+        Config:EmbedOptionsIntoContainer(contentPane)
+    end)
+
+    f:SetScript("OnHide", function()
+        if ns.Tracker and ns.Tracker.HideConfigOverlay then
+            ns.Tracker:HideConfigOverlay()
+        end
+    end)
+
+    self.standaloneFrame = f
+    return f
+end
+
+function Config:ToggleConfigFrame()
+    local f = self:GetOrCreateStandaloneFrame()
+    if f:IsShown() then
+        f:Hide()
+    else
+        f:Show()
     end
--- ---------------------------------------------------------------------------
--- Master Config Addon Integration (BleakfibersAddonConfigForever)
--- ---------------------------------------------------------------------------
+end
 
 local PublicAPI = ns.PublicAPI or _G["BleakfibersQuestTrackerForever"]
 
 function PublicAPI:BuildMasterConfigUI(parentContainer)
     if not parentContainer then return end
     local content = parentContainer.content or parentContainer
-
-    -- Clean up any prior child controls if container is being re-used
-    if content.bfqChildControls then
-        for _, ctrl in ipairs(content.bfqChildControls) do
-            ctrl:Hide()
-            ctrl:SetParent(nil)
-        end
-    end
-    content.bfqChildControls = {}
-
-    -- Header / Title
-    local title = content:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-    title:SetPoint("TOPLEFT", content, "TOPLEFT", 16, -16)
-    title:SetText("|cff00c0ffBleakfiber's Quest Tracker|r - |cffffd100Settings|r")
-    table.insert(content.bfqChildControls, title)
-
-    local subtitle = content:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    subtitle:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -4)
-    subtitle:SetText("Configure primary features or launch the advanced standalone configuration panel.")
-    table.insert(content.bfqChildControls, subtitle)
-
-    -- Button: Open Full Standalone Settings
-    local openFullBtn = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
-    openFullBtn:SetSize(220, 26)
-    openFullBtn:SetPoint("TOPLEFT", subtitle, "BOTTOMLEFT", 0, -14)
-    openFullBtn:SetText("Open Advanced Settings...")
-    openFullBtn:SetScript("OnClick", function()
-        PublicAPI:OpenSettings()
-    end)
-    table.insert(content.bfqChildControls, openFullBtn)
-
-    -- Button: Setup Walkthrough
-    local onboardBtn = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
-    onboardBtn:SetSize(180, 26)
-    onboardBtn:SetPoint("LEFT", openFullBtn, "RIGHT", 10, 0)
-    onboardBtn:SetText("Run Setup Walkthrough")
-    onboardBtn:SetScript("OnClick", function()
-        if ns.Onboarding and ns.Onboarding.ShowWizard then
-            ns.Onboarding:ShowWizard()
-        end
-    end)
-    table.insert(content.bfqChildControls, onboardBtn)
-
-    -- Quick Checkboxes Helper
-    local function CreateCheck(label, key, parentKey, anchorTo, xOff, yOff)
-        local check = CreateFrame("CheckButton", nil, content, "UICheckButtonTemplate")
-        check:SetPoint("TOPLEFT", anchorTo, "BOTTOMLEFT", xOff, yOff)
-        local text = check.text or (check:GetName() and _G[check:GetName() .. "Text"])
-        if not text then
-            text = check:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-            text:SetPoint("LEFT", check, "RIGHT", 4, 1)
-        end
-        text:SetText(label)
-
-        local function GetVal()
-            local curDB = ns.db or _G["BleakfiberTrackerDB"]
-            if parentKey then
-                return curDB and curDB[parentKey] and curDB[parentKey][key]
-            else
-                return curDB and curDB[key]
-            end
-        end
-
-        local function SetVal(val)
-            local curDB = ns.db or _G["BleakfiberTrackerDB"]
-            if parentKey then
-                curDB[parentKey] = curDB[parentKey] or {}
-                curDB[parentKey][key] = val
-            else
-                curDB[key] = val
-            end
-            PublicAPI:ApplySettings()
-        end
-
-        check:SetChecked(GetVal() == true)
-        check:SetScript("OnClick", function(self)
-            SetVal(self:GetChecked())
-        end)
-        table.insert(content.bfqChildControls, check)
-        return check
-    end
-
-    local chkLock = CreateCheck("Lock Tracker Position", "locked", nil, openFullBtn, 0, -16)
-    local chkWayfinder = CreateCheck("Enable Wayfinder Navigation & Map Pins", "enabled", "wayfinder", chkLock, 0, -6)
-    local chkDataBars = CreateCheck("Enable DataBars (XP, Location, Timer)", "enabled", "databars", chkWayfinder, 0, -6)
-    local chkAutomation = CreateCheck("Enable Quest Automation (Auto-Accept/Turn-in)", "enabled", "automation", chkDataBars, 0, -6)
-    local chkQoL = CreateCheck("Enable Quality of Life (Fast Auto-Loot, Grey Selling)", "enabled", "qol", chkAutomation, 0, -6)
-
-    -- Scale Slider
-    local scaleSlider = CreateFrame("Slider", nil, content, "OptionsSliderTemplate")
-    scaleSlider:SetPoint("TOPLEFT", chkQoL, "BOTTOMLEFT", 4, -28)
-    scaleSlider:SetWidth(240)
-    scaleSlider:SetMinMaxValues(0.5, 1.5)
-    scaleSlider:SetValueStep(0.05)
-    scaleSlider:SetObeyStepNumbers(true)
-
-    local sText = scaleSlider.Text or (scaleSlider:GetName() and _G[scaleSlider:GetName() .. "Text"])
-    local sLow = scaleSlider.Low or (scaleSlider:GetName() and _G[scaleSlider:GetName() .. "Low"])
-    local sHigh = scaleSlider.High or (scaleSlider:GetName() and _G[scaleSlider:GetName() .. "High"])
-    if sText then sText:SetText(string.format("Tracker Scale: %.2f", (ns.db and ns.db.scale) or 1.0)) end
-    if sLow then sLow:SetText("50%") end
-    if sHigh then sHigh:SetText("150%") end
-
-    scaleSlider:SetValue((ns.db and ns.db.scale) or 1.0)
-    scaleSlider:SetScript("OnValueChanged", function(self, val)
-        val = math.floor(val * 100 + 0.5) / 100
-        if ns.db then ns.db.scale = val end
-        if sText then sText:SetText(string.format("Tracker Scale: %.2f", val)) end
-        PublicAPI:ApplySettings()
-    end)
-    table.insert(content.bfqChildControls, scaleSlider)
+    Config:EmbedOptionsIntoContainer(content)
 end
 
 -- Slash Command Handler
