@@ -1,7 +1,7 @@
 # Bleakfiber's Quest Tracker - Forever
 
 [![Interface](https://img.shields.io/badge/Interface-16001%20(WoW%20Forever)-0078D7.svg?style=flat-square)](https://github.com/Bleakfiber/BleakfibersQuestTracker-Forever)
-[![Release](https://img.shields.io/badge/Release-v1.0.18-ffd100.svg?style=flat-square)](https://github.com/Bleakfiber/BleakfibersQuestTracker-Forever/releases)
+[![Release](https://img.shields.io/badge/Release-v1.0.19-ffd100.svg?style=flat-square)](https://github.com/Bleakfiber/BleakfibersQuestTracker-Forever/releases)
 [![License](https://img.shields.io/badge/License-Source--Available-crimson.svg?style=flat-square)](LICENSE.md)
 [![Dependencies](https://img.shields.io/badge/Dependencies-Zero%20External-2ea44f.svg?style=flat-square)](https://github.com/Bleakfiber/BleakfibersQuestTracker-Forever)
 [![Suite](https://img.shields.io/badge/Suite-Bleakfiber's%20Addon%20Suite-8a2be2.svg?style=flat-square)](https://github.com/Bleakfiber)
@@ -205,7 +205,7 @@ BleakfibersQuestTracker-Forever/
 
 1. Download the latest release package from the official [Releases](https://github.com/Bleakfiber/BleakfibersQuestTracker-Forever/releases) page.
 2. Exit World of Warcraft completely.
-3. Extract the downloaded zip archive (`BleakfibersQuestTracker-Forever 1.0.18.zip`).
+3. Extract the downloaded zip archive (`BleakfibersQuestTracker-Forever 1.0.19.zip`).
 4. Copy the `BleakfibersQuestTracker-Forever` folder into your WoW client AddOns directory:
    ```
    World of Warcraft/_forever_/Interface/AddOns/BleakfibersQuestTracker-Forever
