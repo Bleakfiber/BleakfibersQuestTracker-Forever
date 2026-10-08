@@ -1,7 +1,7 @@
 # Bleakfiber's Quest Tracker - Forever
 
 [![Interface](https://img.shields.io/badge/Interface-16001%20(WoW%20Forever)-0078D7.svg?style=flat-square)](https://github.com/Bleakfiber/BleakfibersQuestTracker-Forever)
-[![Release](https://img.shields.io/badge/Release-v1.0.19-ffd100.svg?style=flat-square)](https://github.com/Bleakfiber/BleakfibersQuestTracker-Forever/releases)
+[![Release](https://img.shields.io/badge/Release-v1.1.0-ffd100.svg?style=flat-square)](https://github.com/Bleakfiber/BleakfibersQuestTracker-Forever/releases)
 [![License](https://img.shields.io/badge/License-Source--Available-crimson.svg?style=flat-square)](LICENSE.md)
 [![Dependencies](https://img.shields.io/badge/Dependencies-Zero%20External-2ea44f.svg?style=flat-square)](https://github.com/Bleakfiber/BleakfibersQuestTracker-Forever)
 [![Suite](https://img.shields.io/badge/Suite-Bleakfiber's%20Addon%20Suite-8a2be2.svg?style=flat-square)](https://github.com/Bleakfiber)
@@ -90,6 +90,8 @@ Comprehensive header and footer status bars:
 
 ### 6. Quest Automation & Group Sync
 Streamline tedious quest interactions with safety toggles:
+- **Party Quest Status in Tooltips**: Hovering over any quest displays an instant breakdown of party members currently on the quest (`[✓ On Quest]`) and missing teammates (`[✗ Missing]`), complete with class colors and pushable share hints.
+- **Tracker Party Badges**: Optional `[👥 #]` group counter badge displayed directly beside quest titles in the tracker when fellow teammates share the quest.
 - **Fast Auto Loot**: Instant event-driven looting that completely unhooks when disabled.
 - **Auto-Accept**: Automatically accepts offered quests and party member quest shares.
 - **Safe Auto-Turn In**: Automatically completes quests with 0 or 1 item choice. *Safely pauses if multiple equipment rewards are offered so you never take the wrong item.*

@@ -235,6 +235,16 @@ function Config:OpenFilterMenu(anchor)
         end,
     })
 
+    table.insert(rows, {
+        type = "checkbox",
+        text = "Show Party Members",
+        checked = not (db.tooltips and db.tooltips.showPartyStatus == false),
+        onClick = function()
+            db.tooltips = db.tooltips or {}
+            db.tooltips.showPartyStatus = not (db.tooltips.showPartyStatus ~= false)
+        end,
+    })
+
     table.insert(rows, { type = "sep" })
     table.insert(rows, { type = "header", text = "Wayfinder Navigation" })
     table.insert(rows, {
@@ -1758,6 +1768,57 @@ local function GetOptionsTable()
                                 set = function(_, val)
                                     db.tooltips = db.tooltips or {}
                                     db.tooltips.showBestSell = val
+                                end,
+                            },
+                            showPartyStatus = {
+                                name = "Show Party Members on Quest",
+                                desc = "Show which party members are currently on the quest when hovering over a quest in the tracker.",
+                                type = "toggle",
+                                width = "full",
+                                order = 3.4,
+                                get = function() return not (db.tooltips and db.tooltips.showPartyStatus == false) end,
+                                set = function(_, val)
+                                    db.tooltips = db.tooltips or {}
+                                    db.tooltips.showPartyStatus = val
+                                end,
+                            },
+                            showMissingParty = {
+                                name = "Show Missing Party Members",
+                                desc = "Display group members who do not currently have the quest, noting if the quest can be shared with them.",
+                                type = "toggle",
+                                width = "full",
+                                order = 3.5,
+                                disabled = function() return db.tooltips and db.tooltips.showPartyStatus == false end,
+                                get = function() return not (db.tooltips and db.tooltips.showMissingParty == false) end,
+                                set = function(_, val)
+                                    db.tooltips = db.tooltips or {}
+                                    db.tooltips.showMissingParty = val
+                                end,
+                            },
+                            classColorParty = {
+                                name = "Class Color Party Names",
+                                desc = "Format party member names in tooltips using their character class colors.",
+                                type = "toggle",
+                                width = "full",
+                                order = 3.6,
+                                disabled = function() return db.tooltips and db.tooltips.showPartyStatus == false end,
+                                get = function() return not (db.tooltips and db.tooltips.classColorParty == false) end,
+                                set = function(_, val)
+                                    db.tooltips = db.tooltips or {}
+                                    db.tooltips.classColorParty = val
+                                end,
+                            },
+                            showPartyBadge = {
+                                name = "Show Party Count Badge on Tracker",
+                                desc = "Appends a [👥 #] group count badge next to quest titles in the tracker when party members share the quest.",
+                                type = "toggle",
+                                width = "full",
+                                order = 3.7,
+                                get = function() return db.tooltips and db.tooltips.showPartyBadge == true end,
+                                set = function(_, val)
+                                    db.tooltips = db.tooltips or {}
+                                    db.tooltips.showPartyBadge = val
+                                    ns:FireCallback("QUEST_DATA_CHANGED")
                                 end,
                             },
                         },
@@ -5036,6 +5097,37 @@ local function BuildQuestsTab(content, syncList)
     )
     table.insert(syncList, cbUsableGear)
 
+    local cbPartyStatus = CreateStyledCheckbox(content, "Show Party Members on Quest",
+        "Shows which party members are currently on the quest when hovering over a quest in the tracker.",
+        function() return tipDb.showPartyStatus ~= false end,
+        function(v) tipDb.showPartyStatus = v end
+    )
+    table.insert(syncList, cbPartyStatus)
+
+    local cbMissingParty = CreateStyledCheckbox(content, "Show Missing Party Members",
+        "Displays group members who do not currently have the quest, noting if it can be shared with them.",
+        function() return tipDb.showMissingParty ~= false end,
+        function(v) tipDb.showMissingParty = v end
+    )
+    table.insert(syncList, cbMissingParty)
+
+    local cbClassColorParty = CreateStyledCheckbox(content, "Class Color Party Names",
+        "Formats party member names in tooltips using their character class colors.",
+        function() return tipDb.classColorParty ~= false end,
+        function(v) tipDb.classColorParty = v end
+    )
+    table.insert(syncList, cbClassColorParty)
+
+    local cbPartyBadge = CreateStyledCheckbox(content, "Show Party Count Badge [👥 #]",
+        "Appends a [👥 #] group count badge next to quest titles in the tracker when party members share the quest.",
+        function() return tipDb.showPartyBadge == true end,
+        function(v)
+            tipDb.showPartyBadge = v
+            if ns.FireCallback then ns:FireCallback("QUEST_DATA_CHANGED") end
+        end
+    )
+    table.insert(syncList, cbPartyBadge)
+
     local h3, d3 = CreateSectionHeader(content, "ZONE EXPANSION ACTIONS", 12, 0)
     local btnExpandAll = CreateStyledButton(content, "Expand All Zones", 190, 22, function()
         if db then
@@ -5090,14 +5182,26 @@ local function BuildQuestsTab(content, syncList)
 
             cbGroupTags:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             cbGroupTags.Text:SetWidth(colWidth - 32)
-            cbRewards:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
-            cbRewards.Text:SetWidth(colWidth - 32)
+            cbPartyBadge:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbPartyBadge.Text:SetWidth(colWidth - 32)
             y = y - 34
 
-            cbXpPct:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbRewards:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbRewards.Text:SetWidth(colWidth - 32)
+            cbXpPct:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
             cbXpPct.Text:SetWidth(colWidth - 32)
-            cbUsableGear:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            y = y - 34
+
+            cbUsableGear:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             cbUsableGear.Text:SetWidth(colWidth - 32)
+            cbPartyStatus:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbPartyStatus.Text:SetWidth(colWidth - 32)
+            y = y - 34
+
+            cbMissingParty:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbMissingParty.Text:SetWidth(colWidth - 32)
+            cbClassColorParty:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbClassColorParty.Text:SetWidth(colWidth - 32)
             y = y - 40
 
             h3:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
@@ -5137,6 +5241,9 @@ local function BuildQuestsTab(content, syncList)
             cbGroupTags:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             cbGroupTags.Text:SetWidth(colWidth - 32)
             y = y - 32
+            cbPartyBadge:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbPartyBadge.Text:SetWidth(colWidth - 32)
+            y = y - 32
             cbRewards:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             cbRewards.Text:SetWidth(colWidth - 32)
             y = y - 32
@@ -5145,6 +5252,15 @@ local function BuildQuestsTab(content, syncList)
             y = y - 32
             cbUsableGear:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             cbUsableGear.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbPartyStatus:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbPartyStatus.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbMissingParty:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbMissingParty.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbClassColorParty:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbClassColorParty.Text:SetWidth(colWidth - 32)
             y = y - 38
 
             h3:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)

@@ -234,6 +234,14 @@ local function GetFormattedQuestTitle(questInfo)
     if freq and freq > 1 then
         tag = " |cff00ccff[Daily]|r"
     end
+
+    local showPartyBadge = db and db.tooltips and db.tooltips.showPartyBadge
+    if showPartyBadge and ns.SocialModule and ns.SocialModule.GetPartyQuestDetails then
+        local partyDetails = ns.SocialModule:GetPartyQuestDetails(questInfo.questID, questInfo.questLogIndex)
+        if partyDetails and partyDetails.onQuestCount > 0 then
+            tag = tag .. string.format(" |cff00e5ff[👥%d]|r", partyDetails.onQuestCount)
+        end
+    end
     
     local activeMarker = ""
     if ns.activeQuestID and questInfo.questID == ns.activeQuestID then
@@ -1499,6 +1507,47 @@ local function ShowQuestTooltip(anchorFrame, qInfo)
                 end
             else
                 GameTooltip:AddLine("  • |cff888888None (or discovery quest)|r", 0.6, 0.6, 0.6)
+            end
+        end
+    end
+
+    local db = ns.db
+    -- Party Quest Status
+    local showPartyTip = not (db and db.tooltips and db.tooltips.showPartyStatus == false)
+    if showPartyTip and ns.SocialModule and ns.SocialModule.GetPartyQuestDetails then
+        local partyDetails = ns.SocialModule:GetPartyQuestDetails(qInfo.questID, qInfo.questLogIndex)
+        if partyDetails and partyDetails.totalGroupMembers > 1 then
+            local classColorParty = not (db and db.tooltips and db.tooltips.classColorParty == false)
+            local showMissing = not (db and db.tooltips and db.tooltips.showMissingParty == false)
+
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("|cffffd100Party Quest Status:|r")
+
+            if partyDetails.onQuestCount > 0 then
+                for _, member in ipairs(partyDetails.onQuest) do
+                    local nameStr = classColorParty and member.coloredName or member.name
+                    local statusTag = "|cff00ff00[✓ On Quest]|r"
+                    if not member.isConnected then
+                        statusTag = statusTag .. " |cff888888(Offline)|r"
+                    end
+                    GameTooltip:AddLine("  • " .. nameStr .. " " .. statusTag)
+                end
+            else
+                GameTooltip:AddLine("  • |cff888888No other party members are on this quest|r")
+            end
+
+            if showMissing and partyDetails.missingCount > 0 then
+                for _, member in ipairs(partyDetails.missing) do
+                    local nameStr = classColorParty and member.coloredName or member.name
+                    local statusTag = "|cffff6666[✗ Missing]|r"
+                    if partyDetails.isPushable then
+                        statusTag = statusTag .. " |cff00e5ff(Click to Share)|r"
+                    end
+                    if not member.isConnected then
+                        statusTag = statusTag .. " |cff888888(Offline)|r"
+                    end
+                    GameTooltip:AddLine("  • " .. nameStr .. " " .. statusTag)
+                end
             end
         end
     end

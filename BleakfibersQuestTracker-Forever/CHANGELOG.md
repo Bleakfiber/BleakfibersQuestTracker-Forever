@@ -2,6 +2,24 @@
 
 All notable changes to **Bleakfiber's Quest Tracker - Forever** are documented below.
 
+## [1.1.0] - 2026-10-08: Party Quest Status & Tooltip Integration
+
+### Party Quest Status & Tooltip Integration
+- **Party Quest Status in Tooltips**:
+  - Integrated native Blizzard engine query support (`IsUnitOnQuest` and `C_QuestLog.IsUnitOnQuest`) with zero-latency party checks and Addon Sync fallback.
+  - Hovering over any quest title in the tracker displays a dedicated `Party Quest Status` section in the tooltip listing party members who have the quest (`[✓ On Quest]`) and members who are missing it (`[✗ Missing]`).
+  - Formats party member names with their native class colors (`RAID_CLASS_COLORS`) and adds `(Offline)` status indicators for disconnected party members.
+  - Pushable quests dynamically display actionable share hints (`(Click to Share)`) next to missing teammates.
+- **Tracker Header Party Badges**:
+  - Added optional `[👥 #]` group counter badges displayed beside quest titles when group members share the quest.
+- **Configuration & Quick Access Toggles**:
+  - Added 4 dedicated toggles in both the native Dark Slate & Gold GUI (`Quests & Items` tab) and AceConfig: `Show Party Members on Quest`, `Show Missing Party Members`, `Class Color Party Names`, and `Show Party Count Badge [👥 #]`.
+  - Added a quick `Show Party Members` toggle into the tracker header `[...]` popup menu for on-the-fly toggling in dungeons.
+- **Version Format Standardization**:
+  - Standardized version numbering format to `#.#.#` (`v1.1.0`) across all documentation and TOC manifests to ensure consistent SemVer alignment with the Bleakfiber Addon Suite.
+
+---
+
 ## [1.0.19] - 2026-10-08: Complete Configuration Restoration & Audio Suite Polish
 
 ### Configuration GUI Restoration & Completeness

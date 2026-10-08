@@ -725,15 +725,10 @@ local function HandleQuestShareSystemFeedback(msg)
     end
 end
 
--- Retrieve party progress formatted summary for an objective (disabled)
-function SocialModule:GetObjectivePartyProgress(questID, objIndex)
-    return nil
-end
-
--- Check if party members are missing this quest and if it can be shared
-function SocialModule:GetMissingPartyInfo(questID, questLogIndex)
-    if not (IsInGroup() or (GetNumGroupMembers and GetNumGroupMembers() > 0)) then
-        return 0, false
+-- Retrieve detailed party quest status for tooltips and badges
+function SocialModule:GetPartyQuestDetails(questID, questLogIndex)
+    if not (IsInGroup and (IsInGroup() or (GetNumGroupMembers and GetNumGroupMembers() > 1))) then
+        return nil
     end
 
     if not questLogIndex or questLogIndex == 0 then
@@ -747,47 +742,107 @@ function SocialModule:GetMissingPartyInfo(questID, questLogIndex)
         end
     end
 
-    -- Same selection requirement as ShareQuest: IsPushableQuest/GetQuestLogPushable
-    -- report on whichever quest is currently selected, not the questID passed in.
-    if questID and C_QuestLog and C_QuestLog.SetSelectedQuest then
-        C_QuestLog.SetSelectedQuest(questID)
-    elseif questLogIndex and SelectQuestLogEntry then
-        SelectQuestLogEntry(questLogIndex)
-    end
+    local numMembers = (GetNumGroupMembers and GetNumGroupMembers()) or (GetNumSubgroupMembers and (GetNumSubgroupMembers() + 1)) or 0
+    if numMembers <= 1 then return nil end
 
+    -- Check quest pushability across modern and classic APIs
     local isPushable = false
     if questID and C_QuestLog and C_QuestLog.IsPushableQuest then
         isPushable = C_QuestLog.IsPushableQuest(questID)
     end
+    if not isPushable and questLogIndex and GetQuestLogPushable then
+        if questID and C_QuestLog and C_QuestLog.SetSelectedQuest then
+            C_QuestLog.SetSelectedQuest(questID)
+        elseif questLogIndex and SelectQuestLogEntry then
+            SelectQuestLogEntry(questLogIndex)
+        end
+        isPushable = GetQuestLogPushable() and true or false
+    end
     if not isPushable and ns.IsQuestPushable then
         isPushable = ns.IsQuestPushable(questID, questLogIndex)
     end
-    if not isPushable and questLogIndex and GetQuestLogPushable then
-        isPushable = GetQuestLogPushable() and true or false
-    end
-    if not isPushable then
-        return 0, false
-    end
 
-    local numMembers = (GetNumGroupMembers and GetNumGroupMembers()) or 0
-    if numMembers <= 1 then return 0, false end
-
-    local haveData = (ns.partyQuestData[questID] and ns.partyQuestData[questID].have) or {}
-    local missingCount = 0
-
+    local onQuest = {}
+    local missing = {}
     local isRaid = IsInRaid and IsInRaid()
+
     for i = 1, numMembers do
         local unit = isRaid and ("raid" .. i) or (i < numMembers and ("party" .. i) or nil)
-        if unit and UnitExists(unit) and UnitIsConnected(unit) and not UnitIsUnit(unit, "player") then
+        if unit and UnitExists(unit) and not UnitIsUnit(unit, "player") then
             local rawName = UnitName(unit)
-            local clean = CleanName(rawName)
-            if clean ~= "" and not haveData[clean] then
-                missingCount = missingCount + 1
+            if rawName and rawName ~= "" and rawName ~= UNKNOWNOBJECT and rawName ~= "Unknown" then
+                local isConnected = UnitIsConnected(unit)
+                local isOnQuest = false
+
+                -- 1. Native engine IsUnitOnQuest (Classic/Vanilla)
+                if questLogIndex and questLogIndex > 0 and IsUnitOnQuest then
+                    local ok, res = pcall(IsUnitOnQuest, questLogIndex, unit)
+                    if ok and res then isOnQuest = true end
+                end
+
+                -- 2. Modern C_QuestLog.IsUnitOnQuest
+                if not isOnQuest and questID and C_QuestLog and C_QuestLog.IsUnitOnQuest then
+                    local ok, res = pcall(C_QuestLog.IsUnitOnQuest, questID, unit)
+                    if ok and res then isOnQuest = true end
+                end
+
+                -- 3. Fallback to Addon Sync / system feedback cache
+                if not isOnQuest then
+                    local clean = CleanName(rawName)
+                    local haveData = (ns.partyQuestData and ns.partyQuestData[questID] and ns.partyQuestData[questID].have) or {}
+                    if haveData[clean] then isOnQuest = true end
+                end
+
+                -- Class coloring
+                local _, classFile = UnitClass(unit)
+                local coloredName = rawName
+                local color = classFile and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile]
+                if color and color.colorStr then
+                    coloredName = string_format("|c%s%s|r", color.colorStr, rawName)
+                elseif color and color.r then
+                    coloredName = string_format("|cff%02x%02x%02x%s|r", math.floor(color.r * 255), math.floor(color.g * 255), math.floor(color.b * 255), rawName)
+                end
+
+                local entry = {
+                    unit = unit,
+                    name = rawName,
+                    coloredName = coloredName,
+                    class = classFile,
+                    isConnected = isConnected,
+                    isOnQuest = isOnQuest,
+                }
+
+                if isOnQuest then
+                    table.insert(onQuest, entry)
+                else
+                    table.insert(missing, entry)
+                end
             end
         end
     end
 
-    return missingCount, isPushable
+    return {
+        totalGroupMembers = numMembers,
+        onQuest = onQuest,
+        missing = missing,
+        onQuestCount = #onQuest,
+        missingCount = #missing,
+        isPushable = isPushable,
+    }
+end
+
+-- Retrieve party progress formatted summary for an objective
+function SocialModule:GetObjectivePartyProgress(questID, objIndex)
+    return nil
+end
+
+-- Check if party members are missing this quest and if it can be shared
+function SocialModule:GetMissingPartyInfo(questID, questLogIndex)
+    local details = self:GetPartyQuestDetails(questID, questLogIndex)
+    if not details then
+        return 0, false
+    end
+    return details.missingCount, details.isPushable
 end
 
 function SocialModule:UpdateLootEvents()

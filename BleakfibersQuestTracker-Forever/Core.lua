@@ -46,7 +46,7 @@ ns.addonName = addonName
 ns.title = "|cff00c0ffBleakfiber's Quest Tracker - Forever|r"
 ns.version = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(addonName, "Version")) 
     or (GetAddOnMetadata and GetAddOnMetadata(addonName, "Version")) 
-    or "1.0.17"
+    or "1.1.0"
 
 -- Public Module API & Global Exports for Centralized Config Addons
 local PublicAPI = _G["BleakfibersQuestTrackerForever"] or {}
@@ -111,7 +111,7 @@ function PublicAPI:RegisterWithMasterConfig()
             id = "BleakfibersQuestTracker",
             name = "Quest Tracker",
             sidebarName = "Quest Tracker",
-            version = ns.version or "1.0.17",
+            version = ns.version or "1.1.0",
             author = "Bleakfiber",
             isBleakfiber = true,
             db = ns.db or _G["BleakfiberTrackerDB"],
@@ -1092,6 +1092,10 @@ ns.defaultDB = {
             showXpPercent = true,        -- Show XP reward percentage toward current level
             showUsableGear = true,       -- Highlight class-usable equipment rewards
             showBestSell = true,         -- Mark highest vendor resale choice reward
+            showPartyStatus = true,      -- Show party members on quest in tooltip
+            showMissingParty = true,     -- Show party members missing the quest in tooltip
+            classColorParty = true,      -- Color party member names with class color
+            showPartyBadge = false,      -- Append [👥 #] group count badge next to quest title
         },
 
         -- Audio & Sounds
