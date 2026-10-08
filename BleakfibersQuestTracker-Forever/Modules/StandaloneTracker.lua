@@ -415,6 +415,11 @@ function StandaloneTracker:GetOrCreateItemButton(index)
     self.itemButtons = self.itemButtons or {}
     if self.itemButtons[index] then return self.itemButtons[index] end
 
+    if InCombatLockdown and InCombatLockdown() then
+        self.pendingItemUpdate = true
+        return nil
+    end
+
     local frameName = (index == 1) and "BleakfiberQuestItemButton1" or ("BleakfiberQuestItemButton" .. index)
     local btn = CreateFrame("Button", frameName, UIParent, (BackdropTemplateMixin and "SecureActionButtonTemplate, BackdropTemplate") or "SecureActionButtonTemplate")
     if index == 1 then
@@ -617,6 +622,10 @@ function StandaloneTracker:UpdateItemButton(trackedQuests)
     -- 2. Update button for each item quest
     for i, q in ipairs(itemQuests) do
         local btn = self:GetOrCreateItemButton(i)
+        if not btn then
+            self.pendingItemUpdate = true
+            break
+        end
 
         -- Item button should only be shown when the parent quest is actively rendered and visible inside the tracker
         local block = self.activeBlocks and q.questID and self.activeBlocks[q.questID]
@@ -639,10 +648,6 @@ function StandaloneTracker:UpdateItemButton(trackedQuests)
         end
 
         local isQuestVisible = (block and block.header and block:IsVisible() and tracker and tracker:IsVisible() and isWithinScroll)
-
-        -- Frame Strata & Level: lock below tracker header (35) and databars (40/45)
-        btn:SetFrameStrata("MEDIUM")
-        btn:SetFrameLevel(12)
 
         -- Visuals
         btn.icon:SetTexture(q.itemTexture)
@@ -677,6 +682,10 @@ function StandaloneTracker:UpdateItemButton(trackedQuests)
             self.pendingItemUpdate = true
             if not isQuestVisible then
                 btn:SetAlpha(0)
+            else
+                if btn:IsShown() then
+                    btn:SetAlpha(1)
+                end
             end
         else
             local itemAttr = q.itemLink or (q.itemID and ("item:" .. q.itemID)) or q.itemTexture
@@ -729,6 +738,29 @@ function StandaloneTracker:UpdateItemButton(trackedQuests)
             else
                 extraBtn:SetAlpha(0)
                 self.pendingItemUpdate = true
+            end
+        end
+    end
+end
+
+-- Lightweight Cooldown-Only Updater (Safe to execute during combat lockdown)
+function StandaloneTracker:UpdateItemButtonCooldowns()
+    if not self.itemButtons then return end
+    for _, btn in ipairs(self.itemButtons) do
+        if btn:IsShown() and btn.cooldown and btn.itemID then
+            local start, duration, enable = 0, 0, 0
+            if C_Item and C_Item.GetItemCooldown then
+                start, duration, enable = C_Item.GetItemCooldown(btn.itemID)
+            elseif C_Container and C_Container.GetItemCooldown then
+                start, duration, enable = C_Container.GetItemCooldown(btn.itemID)
+            elseif GetItemCooldown then
+                start, duration, enable = GetItemCooldown(btn.itemID)
+            end
+            if start and duration and duration > 0 then
+                btn.cooldown:SetCooldown(start, duration)
+                btn.cooldown:Show()
+            else
+                btn.cooldown:Hide()
             end
         end
     end
@@ -2866,7 +2898,9 @@ function StandaloneTracker:Initialize()
             return
         end
         if event == "BAG_UPDATE_COOLDOWN" or event == "ACTIONBAR_UPDATE_COOLDOWN" then
-            if StandaloneTracker.UpdateItemButton then
+            if StandaloneTracker.UpdateItemButtonCooldowns then
+                StandaloneTracker:UpdateItemButtonCooldowns()
+            elseif StandaloneTracker.UpdateItemButton and not InCombatLockdown() then
                 StandaloneTracker:UpdateItemButton()
             end
             return
@@ -2935,7 +2969,12 @@ function StandaloneTracker:Initialize()
                 if tf then
                     tf:Hide()
                 end
-                if StandaloneTracker.itemButton then
+                if StandaloneTracker.itemButtons then
+                    for _, btn in ipairs(StandaloneTracker.itemButtons) do
+                        btn:SetAlpha(0)
+                    end
+                    StandaloneTracker.pendingItemUpdate = true
+                elseif StandaloneTracker.itemButton then
                     StandaloneTracker.itemButton:SetAlpha(0)
                     StandaloneTracker.pendingItemUpdate = true
                 end
@@ -2961,7 +3000,13 @@ function StandaloneTracker:Initialize()
                         tf:Show()
                     end
                 end
-                if StandaloneTracker.itemButton then
+                if StandaloneTracker.itemButtons then
+                    for _, btn in ipairs(StandaloneTracker.itemButtons) do
+                        if btn.questID and btn.parentBlock and btn.parentBlock:IsVisible() then
+                            btn:SetAlpha(1)
+                        end
+                    end
+                elseif StandaloneTracker.itemButton then
                     StandaloneTracker.itemButton:SetAlpha(1)
                 end
             end
