@@ -10,11 +10,9 @@ desktop.ini
 *.bak
 *.zip
 agents.md
-
-
-
-# Deployable addon subfolder (copy-ready, not source)
-BleakfibersQuestTracker-Forever/
 scratch/
 tools/
 blizzardinterfacecode/
+AUDIT_REPORT.md
+
+

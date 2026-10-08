@@ -46,7 +46,7 @@ ns.addonName = addonName
 ns.title = "|cff00c0ffBleakfiber's Quest Tracker - Forever|r"
 ns.version = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(addonName, "Version")) 
     or (GetAddOnMetadata and GetAddOnMetadata(addonName, "Version")) 
-    or "1.0.16"
+    or "1.0.17"
 
 -- Public Module API & Global Exports for Centralized Config Addons
 local PublicAPI = _G["BleakfibersQuestTrackerForever"] or {}
@@ -110,11 +110,128 @@ function PublicAPI:RegisterWithMasterConfig()
         BleakfibersAddonConfigForever:RegisterModule("BleakfibersQuestTracker", {
             id = "BleakfibersQuestTracker",
             name = "Quest Tracker",
-            version = ns.version or "1.0.16",
+            sidebarName = "Quest Tracker",
+            version = ns.version or "1.0.17",
+            author = "Bleakfiber",
+            isBleakfiber = true,
             db = ns.db or _G["BleakfiberTrackerDB"],
             getDB = function() return ns.db or _G["BleakfiberTrackerDB"] end,
+            profiles = {
+                GetCurrent = function()
+                    return (ns.dbObject and ns.dbObject.GetCurrentProfile and ns.dbObject:GetCurrentProfile()) or "Default"
+                end,
+                SetCurrent = function(profileKey)
+                    if not profileKey or profileKey == "" then return end
+                    if ns.dbObject and ns.dbObject.SetProfile then
+                        local current = ns.dbObject:GetCurrentProfile()
+                        if current == profileKey then return end
+
+                        local exists = false
+                        if ns.dbObject.GetProfiles then
+                            local list = ns.dbObject:GetProfiles()
+                            if type(list) == "table" then
+                                for _, p in ipairs(list) do
+                                    if p == profileKey then exists = true; break end
+                                end
+                            end
+                        end
+
+                        if exists then
+                            -- Profile already exists: DO NOT OVERWRITE, just switch to it!
+                            ns.dbObject:SetProfile(profileKey)
+                        else
+                            -- New profile: switch to it and copy from current so settings are captured!
+                            ns.dbObject:SetProfile(profileKey)
+                            if current and current ~= profileKey and ns.dbObject.CopyProfile then
+                                ns.dbObject:CopyProfile(current)
+                            end
+                        end
+                    else
+                        ns.pendingProfileSync = profileKey
+                    end
+                end,
+                Create = function(profileKey, fromProfile)
+                    if not profileKey or profileKey == "" then return end
+                    if ns.dbObject and ns.dbObject.SetProfile then
+                        local current = fromProfile or (ns.dbObject.GetCurrentProfile and ns.dbObject:GetCurrentProfile())
+                        local exists = false
+                        if ns.dbObject.GetProfiles then
+                            local list = ns.dbObject:GetProfiles()
+                            if type(list) == "table" then
+                                for _, p in ipairs(list) do
+                                    if p == profileKey then exists = true; break end
+                                end
+                            end
+                        end
+
+                        if exists then
+                            -- Do not overwrite existing profile!
+                            ns.dbObject:SetProfile(profileKey)
+                        else
+                            -- Capture current settings into new profile
+                            ns.dbObject:SetProfile(profileKey)
+                            if current and current ~= profileKey and ns.dbObject.CopyProfile then
+                                ns.dbObject:CopyProfile(current)
+                            end
+                        end
+                    else
+                        ns.pendingProfileSync = profileKey
+                    end
+                end,
+                SaveCurrentAs = function(profileKey)
+                    if not profileKey or profileKey == "" then return end
+                    if ns.dbObject and ns.dbObject.SetProfile then
+                        local current = ns.dbObject:GetCurrentProfile()
+                        ns.dbObject:SetProfile(profileKey)
+                        if current and current ~= profileKey and ns.dbObject.CopyProfile then
+                            ns.dbObject:CopyProfile(current)
+                        end
+                    else
+                        ns.pendingProfileSync = profileKey
+                    end
+                end,
+                List = function()
+                    if ns.dbObject and ns.dbObject.GetProfiles then
+                        return ns.dbObject:GetProfiles()
+                    end
+                    return { "Default" }
+                end,
+                Delete = function(profileKey)
+                    if not profileKey or profileKey == "Default" then return end
+                    if ns.dbObject and ns.dbObject.DeleteProfile then
+                        ns.dbObject:DeleteProfile(profileKey)
+                    end
+                end,
+                Copy = function(fromKey, toKey)
+                    if not fromKey or not toKey then return end
+                    if ns.dbObject and ns.dbObject.SetProfile and ns.dbObject.CopyProfile then
+                        ns.dbObject:SetProfile(toKey)
+                        ns.dbObject:CopyProfile(fromKey)
+                    end
+                end,
+                Reset = function(profileKey)
+                    if ns.dbObject and ns.dbObject.ResetProfile then
+                        if profileKey and ns.dbObject:GetCurrentProfile() ~= profileKey then
+                            ns.dbObject:SetProfile(profileKey)
+                        end
+                        ns.dbObject:ResetProfile()
+                    end
+                end,
+            },
             refresh = function()
                 PublicAPI:ApplySettings()
+            end,
+            toggleMovers = function(enable)
+                if ns.Tracker and ns.Tracker.SetLocked then
+                    if enable ~= nil then
+                        ns.Tracker:SetLocked(not enable)
+                    else
+                        ns.Tracker:SetLocked(not (ns.db and ns.db.isLocked))
+                    end
+                end
+            end,
+            isMoversUnlocked = function()
+                return ns.db and not ns.db.isLocked
             end,
             openStandalone = function()
                 PublicAPI:OpenSettings()
@@ -1342,6 +1459,29 @@ local function InitializeDB(triggerEvent)
         dbObject:RegisterCallback("OnProfileChanged", OnProfileChanged)
         dbObject:RegisterCallback("OnProfileCopied", OnProfileChanged)
         dbObject:RegisterCallback("OnProfileReset", OnProfileChanged)
+
+        if ns.pendingProfileSync then
+            local pending = ns.pendingProfileSync
+            ns.pendingProfileSync = nil
+            local exists = false
+            if dbObject.GetProfiles then
+                local list = dbObject:GetProfiles()
+                if type(list) == "table" then
+                    for _, p in ipairs(list) do
+                        if p == pending then exists = true; break end
+                    end
+                end
+            end
+            local current = dbObject:GetCurrentProfile()
+            if exists then
+                dbObject:SetProfile(pending)
+            else
+                dbObject:SetProfile(pending)
+                if current and current ~= pending and dbObject.CopyProfile then
+                    dbObject:CopyProfile(current)
+                end
+            end
+        end
     else
         if not BleakfiberTrackerDB then
             BleakfiberTrackerDB = {}
@@ -1756,7 +1896,7 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1, ...)
     if event == "ADDON_LOADED" then
         if arg1 == addonName then
             InitializeDB("ADDON_LOADED")
-        elseif arg1 == "BleakfibersAddonConfigForever" then
+        elseif arg1 == "BleakfibersAddonConfigForever" or arg1 == "BleakfibersAddonConfig-Forever" then
             if PublicAPI.RegisterWithMasterConfig then
                 PublicAPI:RegisterWithMasterConfig()
             end

@@ -4313,40 +4313,1739 @@ local COLORS = {
     tabActive    = { 0.22, 0.19, 0.12, 0.95 }, -- Gold-tinted active tab
 }
 
-function Config:EmbedOptionsIntoContainer(containerFrame)
+--[[-----------------------------------------------------------------------------
+    Native Bleakfiber UI Widgets & Responsive Layout Engine for Quest Tracker
+-------------------------------------------------------------------------------]]
+local function SetupAutoScroll(scrollFrame, scrollChild)
+    if not (scrollFrame and scrollChild) then return end
+    local scrollBar = _G[scrollFrame:GetName() and (scrollFrame:GetName() .. "ScrollBar")]
+
+    local function UpdateScrollState()
+        local frameHeight = scrollFrame:GetHeight()
+        local childHeight = scrollChild:GetHeight()
+        if not frameHeight or frameHeight <= 0 then return end
+        if childHeight <= frameHeight + 2 then
+            if scrollBar and scrollBar:IsShown() then
+                scrollBar:Hide()
+            end
+            scrollFrame:EnableMouseWheel(false)
+            scrollFrame:SetVerticalScroll(0)
+        else
+            if scrollBar and not scrollBar:IsShown() then
+                scrollBar:Show()
+            end
+            scrollFrame:EnableMouseWheel(true)
+        end
+    end
+
+    scrollFrame:EnableMouseWheel(true)
+    scrollFrame:SetScript("OnMouseWheel", function(self, delta)
+        local frameHeight = self:GetHeight()
+        local childHeight = scrollChild:GetHeight()
+        if not frameHeight or childHeight <= frameHeight + 2 then return end
+        local cur = self:GetVerticalScroll()
+        local maxScroll = math.max(0, childHeight - frameHeight)
+        local step = 32
+        local newScroll = cur - (delta * step)
+        if newScroll < 0 then newScroll = 0 end
+        if newScroll > maxScroll then newScroll = maxScroll end
+        self:SetVerticalScroll(newScroll)
+    end)
+
+    scrollFrame:HookScript("OnSizeChanged", UpdateScrollState)
+    scrollChild:HookScript("OnSizeChanged", UpdateScrollState)
+    scrollFrame:HookScript("OnShow", UpdateScrollState)
+    UpdateScrollState()
+    return UpdateScrollState
+end
+
+local function CreateSectionHeader(parent, text, xOfs, yOfs)
+    local header = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    header:SetPoint("TOPLEFT", parent, "TOPLEFT", xOfs or 16, yOfs or -10)
+    header:SetText(text)
+    header:SetTextColor(COLORS.goldText[1], COLORS.goldText[2], COLORS.goldText[3])
+
+    local divider = parent:CreateTexture(nil, "ARTWORK")
+    divider:SetHeight(1)
+    divider:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -4)
+    divider:SetPoint("RIGHT", parent, "RIGHT", -16, 0)
+    divider:SetColorTexture(COLORS.goldMuted[1], COLORS.goldMuted[2], COLORS.goldMuted[3], 0.5)
+
+    return header, divider
+end
+
+local function CreateStyledCheckbox(parent, labelText, tooltipText, getFunc, setFunc)
+    local cb = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
+    cb:SetSize(22, 22)
+
+    local text = cb:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    text:SetPoint("LEFT", cb, "RIGHT", 6, 1)
+    text:SetText(labelText)
+    text:SetWordWrap(true)
+    text:SetJustifyH("LEFT")
+    cb.Text = text
+
+    if tooltipText then
+        cb:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:AddLine(labelText, COLORS.goldText[1], COLORS.goldText[2], COLORS.goldText[3])
+            GameTooltip:AddLine(tooltipText, COLORS.whiteText[1], COLORS.whiteText[2], COLORS.whiteText[3], true)
+            GameTooltip:Show()
+        end)
+        cb:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    end
+
+    cb:SetScript("OnClick", function(self)
+        local checked = self:GetChecked()
+        PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or 856)
+        if setFunc then setFunc(checked) end
+        if ns.Tracker and ns.Tracker.UpdateSettings then ns.Tracker:UpdateSettings() end
+        if ns.FireCallback then ns:FireCallback("SETTINGS_UPDATED") end
+        if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
+    end)
+
+    cb.Sync = function()
+        if getFunc then cb:SetChecked(getFunc() == true) end
+    end
+
+    return cb
+end
+
+local function CreateStyledSlider(parent, name, labelText, tooltipText, minVal, maxVal, step, getFunc, setFunc, formatStr)
+    local slider = CreateFrame("Slider", name, parent, "OptionsSliderTemplate")
+    slider:SetWidth(190)
+    slider:SetHeight(16)
+    slider:SetMinMaxValues(minVal, maxVal)
+    slider:SetValueStep(step)
+    slider:SetObeyStepOnDrag(true)
+
+    local label = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    label:SetPoint("BOTTOMLEFT", slider, "TOPLEFT", 0, 4)
+    label:SetText(labelText)
+    label:SetTextColor(COLORS.goldText[1], COLORS.goldText[2], COLORS.goldText[3])
+    slider.Label = label
+
+    local lowText = _G[slider:GetName() .. "Low"]
+    local highText = _G[slider:GetName() .. "High"]
+    local valText = _G[slider:GetName() .. "Text"]
+
+    if lowText then
+        lowText:SetText(tostring(minVal))
+        lowText:SetTextColor(COLORS.dimText[1], COLORS.dimText[2], COLORS.dimText[3])
+    end
+    if highText then
+        highText:SetText(tostring(maxVal))
+        highText:SetTextColor(COLORS.dimText[1], COLORS.dimText[2], COLORS.dimText[3])
+    end
+
+    if valText then
+        valText:ClearAllPoints()
+        valText:SetPoint("BOTTOMRIGHT", slider, "TOPRIGHT", 0, 4)
+        valText:SetJustifyH("RIGHT")
+        valText:SetTextColor(COLORS.whiteText[1], COLORS.whiteText[2], COLORS.whiteText[3])
+    end
+
+    formatStr = formatStr or "%d"
+
+    local function UpdateValText(val)
+        if valText then
+            valText:SetText(string.format(formatStr, val))
+        end
+    end
+
+    slider:SetScript("OnValueChanged", function(self, val)
+        val = math.floor((val / step) + 0.5) * step
+        UpdateValText(val)
+        if self._isSyncing then return end
+        if setFunc then setFunc(val) end
+        if ns.Tracker and ns.Tracker.UpdateSettings then ns.Tracker:UpdateSettings() end
+        if ns.FireCallback then ns:FireCallback("SETTINGS_UPDATED") end
+        if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
+    end)
+
+    if tooltipText then
+        slider:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:AddLine(labelText, COLORS.goldText[1], COLORS.goldText[2], COLORS.goldText[3])
+            GameTooltip:AddLine(tooltipText, COLORS.whiteText[1], COLORS.whiteText[2], COLORS.whiteText[3], true)
+            GameTooltip:Show()
+        end)
+        slider:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    end
+
+    slider.Sync = function()
+        if getFunc then
+            slider._isSyncing = true
+            local cur = getFunc() or minVal
+            slider:SetValue(cur)
+            UpdateValText(cur)
+            slider._isSyncing = false
+        end
+    end
+
+    return slider
+end
+
+local function CreateStyledButton(parent, text, width, height, onClick, tooltipText)
+    local btn = CreateFrame("Button", nil, parent, BACKDROP_TEMPLATE)
+    btn:SetSize(width or 120, height or 22)
+    btn:SetBackdrop(INSET_BACKDROP)
+    btn:SetBackdropColor(unpack(COLORS.tabNormal))
+    btn:SetBackdropBorderColor(unpack(COLORS.goldMuted))
+
+    local label = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    label:SetPoint("CENTER", btn, "CENTER", 0, 0)
+    label:SetText(text)
+    btn.Label = label
+
+    btn:SetScript("OnEnter", function(self)
+        self:SetBackdropColor(0.20, 0.22, 0.28, 0.95)
+        self:SetBackdropBorderColor(unpack(COLORS.goldBorder))
+        label:SetTextColor(COLORS.goldText[1], COLORS.goldText[2], COLORS.goldText[3])
+        if tooltipText then
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:AddLine(text, COLORS.goldText[1], COLORS.goldText[2], COLORS.goldText[3])
+            GameTooltip:AddLine(tooltipText, COLORS.whiteText[1], COLORS.whiteText[2], COLORS.whiteText[3], true)
+            GameTooltip:Show()
+        end
+    end)
+
+    btn:SetScript("OnLeave", function(self)
+        self:SetBackdropColor(unpack(COLORS.tabNormal))
+        self:SetBackdropBorderColor(unpack(COLORS.goldMuted))
+        label:SetTextColor(COLORS.whiteText[1], COLORS.whiteText[2], COLORS.whiteText[3])
+        if tooltipText then GameTooltip:Hide() end
+    end)
+
+    if onClick then
+        btn:SetScript("OnClick", function(self)
+            PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or 856)
+            onClick(self)
+        end)
+    end
+
+    return btn
+end
+
+local function CreateStyledCycleButton(parent, labelPrefix, width, height, options, getFunc, setFunc, tooltipText)
+    local btn = CreateFrame("Button", nil, parent, BACKDROP_TEMPLATE)
+    btn:SetSize(width or 180, height or 22)
+    btn:SetBackdrop(INSET_BACKDROP)
+    btn:SetBackdropColor(unpack(COLORS.tabNormal))
+    btn:SetBackdropBorderColor(unpack(COLORS.goldMuted))
+
+    local label = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    label:SetPoint("CENTER", btn, "CENTER", 0, 0)
+    btn.Label = label
+
+    local function GetCurrentIndex()
+        local cur = getFunc and getFunc()
+        for idx, opt in ipairs(options) do
+            if opt.key == cur then return idx end
+        end
+        return 1
+    end
+
+    local function UpdateText()
+        local idx = GetCurrentIndex()
+        local opt = options[idx] or options[1]
+        label:SetText((labelPrefix and (labelPrefix .. ": ") or "") .. (opt and opt.label or "N/A"))
+    end
+
+    btn:SetScript("OnClick", function()
+        local curIdx = GetCurrentIndex()
+        local nextIdx = (curIdx % #options) + 1
+        local nextOpt = options[nextIdx]
+        PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or 856)
+        if setFunc and nextOpt then
+            setFunc(nextOpt.key, nextOpt)
+        end
+        UpdateText()
+        if ns.Tracker and ns.Tracker.UpdateSettings then ns.Tracker:UpdateSettings() end
+        if ns.FireCallback then ns:FireCallback("SETTINGS_UPDATED") end
+        if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
+    end)
+
+    btn:SetScript("OnEnter", function(self)
+        self:SetBackdropColor(0.20, 0.22, 0.28, 0.95)
+        self:SetBackdropBorderColor(unpack(COLORS.goldBorder))
+        label:SetTextColor(COLORS.goldText[1], COLORS.goldText[2], COLORS.goldText[3])
+        if tooltipText then
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:AddLine(labelPrefix or "Option", COLORS.goldText[1], COLORS.goldText[2], COLORS.goldText[3])
+            GameTooltip:AddLine(tooltipText, COLORS.whiteText[1], COLORS.whiteText[2], COLORS.whiteText[3], true)
+            GameTooltip:Show()
+        end
+    end)
+
+    btn:SetScript("OnLeave", function(self)
+        self:SetBackdropColor(unpack(COLORS.tabNormal))
+        self:SetBackdropBorderColor(unpack(COLORS.goldMuted))
+        label:SetTextColor(COLORS.whiteText[1], COLORS.whiteText[2], COLORS.whiteText[3])
+        if tooltipText then GameTooltip:Hide() end
+    end)
+
+    btn.Sync = UpdateText
+    UpdateText()
+    return btn
+end
+
+--[[-----------------------------------------------------------------------------
+    Native Tab Builders for Quest Tracker
+-------------------------------------------------------------------------------]]
+local BORDER_STYLES = {
+    { key = "flat",    label = "Flat (Sleek 1px)" },
+    { key = "tooltip", label = "Blizzard Tooltip" },
+    { key = "dialog",  label = "Blizzard Dialog" },
+    { key = "none",    label = "None (Borderless)" },
+}
+
+local SORT_MODES = {
+    { key = "level", label = "By Quest Level" },
+    { key = "zone",  label = "By Current Zone" },
+}
+
+local DISTANCE_UNITS = {
+    { key = "imperial", label = "Imperial (Yards)" },
+    { key = "metric",   label = "Metric (Meters)" },
+}
+
+local ITEM_POSITIONS = {
+    { key = "left",  label = "Left Margin" },
+    { key = "right", label = "Right Margin" },
+}
+
+local XP_DOCK_MODES = {
+    { key = "tracker_bottom", label = "Dock Tracker Bottom" },
+    { key = "free",           label = "Free Floating" },
+}
+
+local LOC_DOCK_MODES = {
+    { key = "tracker_top",  label = "Dock Tracker Top" },
+    { key = "minimap_top",  label = "Dock Minimap Top" },
+    { key = "free",         label = "Free Floating" },
+}
+
+-- TAB 1: General Settings
+local function BuildGeneralTab(content, syncList)
+    local db = ns.db or {}
+    local filterDb = db.filtering or {}
+
+    local h1, d1 = CreateSectionHeader(content, "FRAME LOCK & SIZING", 12, 0)
+    local cbLock = CreateStyledCheckbox(content, "Lock Tracker Frame (Shift-drag unlock)",
+        "Locks the tracker frame in place. When unlocked, hold Shift + Left Click to drag anywhere on screen.",
+        function() return db.isLocked == true end,
+        function(v)
+            db.isLocked = v
+            if ns.Tracker and ns.Tracker.SetLocked then ns.Tracker:SetLocked(v) end
+        end
+    )
+    table.insert(syncList, cbLock)
+
+    local slScale = CreateStyledSlider(content, "BFQ_SlScale", "Tracker Scale:",
+        "Adjusts overall tracker UI scale (50% - 150%).",
+        0.5, 1.5, 0.05,
+        function() return db.scale or 1.0 end,
+        function(v) db.scale = v end,
+        "%.2f"
+    )
+    table.insert(syncList, slScale)
+
+    local slAlpha = CreateStyledSlider(content, "BFQ_SlAlpha", "Tracker Alpha:",
+        "Adjusts overall tracker frame transparency.",
+        0.2, 1.0, 0.05,
+        function() return db.alpha or 1.0 end,
+        function(v) db.alpha = v end,
+        "%.2f"
+    )
+    table.insert(syncList, slAlpha)
+
+    local slWidth = CreateStyledSlider(content, "BFQ_SlWidth", "Tracker Width (Pixels):",
+        "Sets the horizontal pixel width of the quest tracker container.",
+        180, 450, 5,
+        function() return db.width or 280 end,
+        function(v) db.width = v end,
+        "%d px"
+    )
+    table.insert(syncList, slWidth)
+
+    local slHeight = CreateStyledSlider(content, "BFQ_SlMaxHeight", "Max Height (Pixels):",
+        "Sets maximum vertical height before the quest list begins clipping or scrolling.",
+        200, 1200, 20,
+        function() return db.maxHeight or 600 end,
+        function(v) db.maxHeight = v end,
+        "%d px"
+    )
+    table.insert(syncList, slHeight)
+
+    local h2, d2 = CreateSectionHeader(content, "VISIBILITY & COMBAT BEHAVIOR", 12, 0)
+    local cbEmpty = CreateStyledCheckbox(content, "Auto-Hide When Empty",
+        "Automatically hides the quest tracker backdrop when you have no active tracked quests.",
+        function() return filterDb.autoHideEmpty == true end,
+        function(v) filterDb.autoHideEmpty = v end
+    )
+    table.insert(syncList, cbEmpty)
+
+    local cbInstance = CreateStyledCheckbox(content, "Auto-Hide Inside Instances",
+        "Automatically conceals the quest tracker while inside dungeons, raids, or battlegrounds.",
+        function() return filterDb.autoHideInInstances == true end,
+        function(v) filterDb.autoHideInInstances = v end
+    )
+    table.insert(syncList, cbInstance)
+
+    local cbCombatHide = CreateStyledCheckbox(content, "Hide Tracker In Combat",
+        "Automatically hides the entire quest tracker frame during combat encounters.",
+        function() return filterDb.hideInCombat == true end,
+        function(v) filterDb.hideInCombat = v end
+    )
+    table.insert(syncList, cbCombatHide)
+
+    local cbCombatCollapse = CreateStyledCheckbox(content, "Collapse Tracker In Combat",
+        "Collapses quest objectives down to a compact single header bar while in combat.",
+        function() return filterDb.collapseInCombat == true end,
+        function(v) filterDb.collapseInCombat = v end
+    )
+    table.insert(syncList, cbCombatCollapse)
+
+    local function Layout(w)
+        if not w or w < 100 then w = content:GetWidth() or 500 end
+        local y = -10
+        h1:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+        y = y - 30
+
+        if w >= 470 then
+            local colWidth = math.floor((w - 48) / 2)
+            local col1X = 16
+            local col2X = col1X + colWidth + 16
+
+            cbLock:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbLock.Text:SetWidth(colWidth - 32)
+            slScale:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            slScale:SetWidth(math.min(190, colWidth - 20))
+            y = y - 48
+
+            slAlpha:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            slAlpha:SetWidth(math.min(190, colWidth - 20))
+            slWidth:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            slWidth:SetWidth(math.min(190, colWidth - 20))
+            y = y - 48
+
+            slHeight:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            slHeight:SetWidth(math.min(190, colWidth - 20))
+            y = y - 48
+
+            h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            cbEmpty:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbEmpty.Text:SetWidth(colWidth - 32)
+            cbInstance:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbInstance.Text:SetWidth(colWidth - 32)
+            y = y - 34
+
+            cbCombatHide:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbCombatHide.Text:SetWidth(colWidth - 32)
+            cbCombatCollapse:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbCombatCollapse.Text:SetWidth(colWidth - 32)
+            y = y - 34
+        else
+            local colWidth = w - 36
+            local col1X = 16
+
+            cbLock:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbLock.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            slScale:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            slScale:SetWidth(math.min(220, colWidth - 20))
+            y = y - 46
+            slAlpha:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            slAlpha:SetWidth(math.min(220, colWidth - 20))
+            y = y - 46
+            slWidth:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            slWidth:SetWidth(math.min(220, colWidth - 20))
+            y = y - 46
+            slHeight:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            slHeight:SetWidth(math.min(220, colWidth - 20))
+            y = y - 46
+
+            h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            cbEmpty:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbEmpty.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbInstance:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbInstance.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbCombatHide:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbCombatHide.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbCombatCollapse:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbCombatCollapse.Text:SetWidth(colWidth - 32)
+            y = y - 32
+        end
+
+        content:SetHeight(math.abs(y) + 20)
+    end
+
+    content.LayoutTab = Layout
+    Layout(content:GetWidth())
+end
+
+-- TAB 2: Quests & Items
+local function BuildQuestsTab(content, syncList)
+    local db = ns.db or {}
+    local itemDb = db.itemButtons or {}
+    local headerDb = db.headers or {}
+    local fontDb = db.fonts or {}
+    local sortDb = db.sorting or {}
+    local tipDb = db.tooltips or {}
+
+    local h1, d1 = CreateSectionHeader(content, "QUEST ITEM ACTION BUTTONS", 12, 0)
+    local cbItemBtn = CreateStyledCheckbox(content, "Enable Quest Item Buttons",
+        "Renders clickable quest item shortcut buttons next to objectives (e.g. Hearthstone, quest items).",
+        function() return itemDb.enabled ~= false end,
+        function(v) itemDb.enabled = v end
+    )
+    table.insert(syncList, cbItemBtn)
+
+    local slItemSize = CreateStyledSlider(content, "BFQ_SlItemSize", "Item Button Size:",
+        "Pixel dimensions of quest item shortcut buttons (20 - 48px).",
+        20, 48, 1,
+        function() return itemDb.size or 26 end,
+        function(v) itemDb.size = v end,
+        "%d px"
+    )
+    table.insert(syncList, slItemSize)
+
+    local cbItemAuto = CreateStyledCheckbox(content, "Auto-Detect Usable Quest Items",
+        "Automatically identifies quest item bags and slots matching active quest requirements.",
+        function() return itemDb.autoDetect ~= false end,
+        function(v) itemDb.autoDetect = v end
+    )
+    table.insert(syncList, cbItemAuto)
+
+    local btnItemPos = CreateStyledCycleButton(content, "Item Docking", 190, 22, ITEM_POSITIONS,
+        function() return itemDb.position or "left" end,
+        function(v) itemDb.position = v end,
+        "Dock quest item buttons on the left margin or right margin of the tracker."
+    )
+    table.insert(syncList, btnItemPos)
+
+    local h2, d2 = CreateSectionHeader(content, "OBJECTIVES, BADGES & TOOLTIPS", 12, 0)
+    local cbCompleteIcon = CreateStyledCheckbox(content, "Show Completed ? Checkmark Icon",
+        "Shows a prominent gold question mark or checkmark when a quest is ready to turn in.",
+        function() return headerDb.showCompleteIcon ~= false end,
+        function(v) headerDb.showCompleteIcon = v end
+    )
+    table.insert(syncList, cbCompleteIcon)
+
+    local cbDiffColor = CreateStyledCheckbox(content, "Color Quests by Difficulty Level",
+        "Tints quest titles based on character level (Red = Impossible, Orange = Hard, Yellow = Normal, Green = Easy, Grey = Trivial).",
+        function() return fontDb.colorDifficulty ~= false end,
+        function(v) fontDb.colorDifficulty = v end
+    )
+    table.insert(syncList, cbDiffColor)
+
+    local cbGroupTags = CreateStyledCheckbox(content, "Show Group & Elite Badges",
+        "Displays elite, dungeon, and recommended player count tags ([11+], [Elite], [Dungeon]).",
+        function() return sortDb.showGroupTags ~= false end,
+        function(v) sortDb.showGroupTags = v end
+    )
+    table.insert(syncList, cbGroupTags)
+
+    local cbRewards = CreateStyledCheckbox(content, "Show Quest Rewards in Tooltips",
+        "Displays experience, copper/silver/gold rewards, and items upon hovering over a quest in the tracker.",
+        function() return tipDb.showRewards ~= false end,
+        function(v) tipDb.showRewards = v end
+    )
+    table.insert(syncList, cbRewards)
+
+    local cbXpPct = CreateStyledCheckbox(content, "Show XP Reward Percentage",
+        "Displays what percent of your current level will be granted by completing the quest.",
+        function() return tipDb.showXpPercent ~= false end,
+        function(v) tipDb.showXpPercent = v end
+    )
+    table.insert(syncList, cbXpPct)
+
+    local cbUsableGear = CreateStyledCheckbox(content, "Highlight Usable Equipment Upgrades",
+        "Highlights equipment rewards that match your character class and armor proficiencies.",
+        function() return tipDb.showUsableGear ~= false end,
+        function(v) tipDb.showUsableGear = v end
+    )
+    table.insert(syncList, cbUsableGear)
+
+    local function Layout(w)
+        if not w or w < 100 then w = content:GetWidth() or 500 end
+        local y = -10
+        h1:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+        y = y - 30
+
+        if w >= 470 then
+            local colWidth = math.floor((w - 48) / 2)
+            local col1X = 16
+            local col2X = col1X + colWidth + 16
+
+            cbItemBtn:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbItemBtn.Text:SetWidth(colWidth - 32)
+            slItemSize:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            slItemSize:SetWidth(math.min(190, colWidth - 20))
+            y = y - 48
+
+            cbItemAuto:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbItemAuto.Text:SetWidth(colWidth - 32)
+            btnItemPos:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            btnItemPos:SetWidth(math.min(190, colWidth - 20))
+            y = y - 40
+
+            h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            cbCompleteIcon:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbCompleteIcon.Text:SetWidth(colWidth - 32)
+            cbDiffColor:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbDiffColor.Text:SetWidth(colWidth - 32)
+            y = y - 34
+
+            cbGroupTags:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbGroupTags.Text:SetWidth(colWidth - 32)
+            cbRewards:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbRewards.Text:SetWidth(colWidth - 32)
+            y = y - 34
+
+            cbXpPct:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbXpPct.Text:SetWidth(colWidth - 32)
+            cbUsableGear:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbUsableGear.Text:SetWidth(colWidth - 32)
+            y = y - 34
+        else
+            local colWidth = w - 36
+            local col1X = 16
+
+            cbItemBtn:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbItemBtn.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            slItemSize:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            slItemSize:SetWidth(math.min(220, colWidth - 20))
+            y = y - 46
+            cbItemAuto:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbItemAuto.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            btnItemPos:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnItemPos:SetWidth(math.min(220, colWidth - 20))
+            y = y - 38
+
+            h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            cbCompleteIcon:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbCompleteIcon.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbDiffColor:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbDiffColor.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbGroupTags:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbGroupTags.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbRewards:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbRewards.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbXpPct:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbXpPct.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbUsableGear:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbUsableGear.Text:SetWidth(colWidth - 32)
+            y = y - 32
+        end
+
+        content:SetHeight(math.abs(y) + 20)
+    end
+
+    content.LayoutTab = Layout
+    Layout(content:GetWidth())
+end
+
+-- TAB 3: Colors & Fonts
+local function BuildColorsTab(content, syncList)
+    local db = ns.db or {}
+    local bgDb = db.backdrop or {}
+    local fontDb = db.fonts or {}
+
+    local h1, d1 = CreateSectionHeader(content, "TRACKER BACKDROP & BORDER", 12, 0)
+    local btnBorder = CreateStyledCycleButton(content, "Border Style", 190, 22, BORDER_STYLES,
+        function() return bgDb.borderStyle or "flat" end,
+        function(v) bgDb.borderStyle = v end,
+        "Choose between Flat 1px border, Blizzard Tooltip rounded corners, Dialog, or borderless."
+    )
+    table.insert(syncList, btnBorder)
+
+    local cbClassBorder = CreateStyledCheckbox(content, "Class-Colored Tracker Border",
+        "Tints the tracker frame border using your player character's class color.",
+        function() return bgDb.classColorBorder == true end,
+        function(v) bgDb.classColorBorder = v end
+    )
+    table.insert(syncList, cbClassBorder)
+
+    local slBgAlpha = CreateStyledSlider(content, "BFQ_SlBgAlpha", "Background Opacity:",
+        "Controls the dark backdrop fill opacity (0% - 100%).",
+        0.0, 1.0, 0.05,
+        function() return (bgDb.bgColor and bgDb.bgColor.a) or 0.65 end,
+        function(v)
+            bgDb.bgColor = bgDb.bgColor or { r = 0.05, g = 0.05, b = 0.05, a = 0.65 }
+            bgDb.bgColor.a = v
+        end,
+        "%.2f"
+    )
+    table.insert(syncList, slBgAlpha)
+
+    local slBorderAlpha = CreateStyledSlider(content, "BFQ_SlBorderAlpha", "Border Opacity:",
+        "Controls the border opacity (0% - 100%).",
+        0.0, 1.0, 0.05,
+        function() return (bgDb.borderColor and bgDb.borderColor.a) or 0.90 end,
+        function(v)
+            bgDb.borderColor = bgDb.borderColor or { r = 0.15, g = 0.15, b = 0.15, a = 0.90 }
+            bgDb.borderColor.a = v
+        end,
+        "%.2f"
+    )
+    table.insert(syncList, slBorderAlpha)
+
+    local h2, d2 = CreateSectionHeader(content, "TYPOGRAPHY & TEXT SIZES", 12, 0)
+    local slHeaderSize = CreateStyledSlider(content, "BFQ_SlHdrSize", "Header Font Size:",
+        "Font size for quest title headers in the tracker (9 - 20 pt).",
+        9, 20, 1,
+        function() return fontDb.headerSize or 13 end,
+        function(v) fontDb.headerSize = v end,
+        "%d pt"
+    )
+    table.insert(syncList, slHeaderSize)
+
+    local slObjSize = CreateStyledSlider(content, "BFQ_SlObjSize", "Objective Font Size:",
+        "Font size for objective lines and progress counters (8 - 18 pt).",
+        8, 18, 1,
+        function() return fontDb.objectiveSize or 11 end,
+        function(v) fontDb.objectiveSize = v end,
+        "%d pt"
+    )
+    table.insert(syncList, slObjSize)
+
+    local slZoneSize = CreateStyledSlider(content, "BFQ_SlZoneSize", "Zone Header Font Size:",
+        "Font size for collapsible zone title headers (9 - 18 pt).",
+        9, 18, 1,
+        function() return fontDb.zoneHeaderSize or 12 end,
+        function(v) fontDb.zoneHeaderSize = v end,
+        "%d pt"
+    )
+    table.insert(syncList, slZoneSize)
+
+    local cbShadow = CreateStyledCheckbox(content, "Enable Text Dropshadows",
+        "Adds crisp dropshadows behind all tracker text for maximum readability.",
+        function() return fontDb.enableTextShadow ~= false end,
+        function(v) fontDb.enableTextShadow = v end
+    )
+    table.insert(syncList, cbShadow)
+
+    local function Layout(w)
+        if not w or w < 100 then w = content:GetWidth() or 500 end
+        local y = -10
+        h1:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+        y = y - 30
+
+        if w >= 470 then
+            local colWidth = math.floor((w - 48) / 2)
+            local col1X = 16
+            local col2X = col1X + colWidth + 16
+
+            btnBorder:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnBorder:SetWidth(math.min(190, colWidth - 20))
+            cbClassBorder:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbClassBorder.Text:SetWidth(colWidth - 32)
+            y = y - 48
+
+            slBgAlpha:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            slBgAlpha:SetWidth(math.min(190, colWidth - 20))
+            slBorderAlpha:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            slBorderAlpha:SetWidth(math.min(190, colWidth - 20))
+            y = y - 48
+
+            h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            slHeaderSize:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            slHeaderSize:SetWidth(math.min(190, colWidth - 20))
+            slObjSize:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            slObjSize:SetWidth(math.min(190, colWidth - 20))
+            y = y - 48
+
+            slZoneSize:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            slZoneSize:SetWidth(math.min(190, colWidth - 20))
+            cbShadow:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbShadow.Text:SetWidth(colWidth - 32)
+            y = y - 48
+        else
+            local colWidth = w - 36
+            local col1X = 16
+
+            btnBorder:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnBorder:SetWidth(math.min(220, colWidth - 20))
+            y = y - 38
+            cbClassBorder:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbClassBorder.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            slBgAlpha:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            slBgAlpha:SetWidth(math.min(220, colWidth - 20))
+            y = y - 46
+            slBorderAlpha:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            slBorderAlpha:SetWidth(math.min(220, colWidth - 20))
+            y = y - 46
+
+            h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            slHeaderSize:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            slHeaderSize:SetWidth(math.min(220, colWidth - 20))
+            y = y - 46
+            slObjSize:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            slObjSize:SetWidth(math.min(220, colWidth - 20))
+            y = y - 46
+            slZoneSize:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            slZoneSize:SetWidth(math.min(220, colWidth - 20))
+            y = y - 46
+            cbShadow:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbShadow.Text:SetWidth(colWidth - 32)
+            y = y - 32
+        end
+
+        content:SetHeight(math.abs(y) + 20)
+    end
+
+    content.LayoutTab = Layout
+    Layout(content:GetWidth())
+end
+
+-- TAB 4: Headers & Filters
+local function BuildHeadersTab(content, syncList)
+    local db = ns.db or {}
+    local headerDb = db.headers or {}
+    local sortDb = db.sorting or {}
+
+    local h1, d1 = CreateSectionHeader(content, "MAIN HEADER BAR BUTTONS", 12, 0)
+    local cbLog = CreateStyledCheckbox(content, "Show [Log] Button",
+        "Shows the [Log] button to instantly toggle Blizzard QuestLogFrame.",
+        function() return headerDb.showQuestLogBtn ~= false end,
+        function(v) headerDb.showQuestLogBtn = v end
+    )
+    table.insert(syncList, cbLog)
+
+    local cbZone = CreateStyledCheckbox(content, "Show [Zone] Filter Button",
+        "Shows the [Zone] button to filter tracker quests strictly to your current zone.",
+        function() return headerDb.showZoneBtn ~= false end,
+        function(v) headerDb.showZoneBtn = v end
+    )
+    table.insert(syncList, cbZone)
+
+    local cbAll = CreateStyledCheckbox(content, "Show [All] Show-All Button",
+        "Shows the [All] button to display all active quest log entries.",
+        function() return headerDb.showAllBtn ~= false end,
+        function(v) headerDb.showAllBtn = v end
+    )
+    table.insert(syncList, cbAll)
+
+    local cbMenu = CreateStyledCheckbox(content, "Show [...] Options Menu Button",
+        "Shows the [...] button to open options and quick settings.",
+        function() return headerDb.showMenuBtn ~= false end,
+        function(v) headerDb.showMenuBtn = v end
+    )
+    table.insert(syncList, cbMenu)
+
+    local cbCollapse = CreateStyledCheckbox(content, "Show [-] Collapse Button",
+        "Shows the [-] button to minimize or expand the tracker body.",
+        function() return headerDb.showCollapseBtn ~= false end,
+        function(v) headerDb.showCollapseBtn = v end
+    )
+    table.insert(syncList, cbCollapse)
+
+    local h2, d2 = CreateSectionHeader(content, "ZONE GROUPING & SORTING", 12, 0)
+    local cbZoneHeaders = CreateStyledCheckbox(content, "Group Quests Under Zone Headers",
+        "Groups quests into collapsible zone header categories.",
+        function() return headerDb.showZoneHeaders ~= false end,
+        function(v) headerDb.showZoneHeaders = v end
+    )
+    table.insert(syncList, cbZoneHeaders)
+
+    local cbZoneCount = CreateStyledCheckbox(content, "Show Zone Quest Counts",
+        "Displays the active quest count next to each zone name (e.g. Westfall (3)).",
+        function() return headerDb.showZoneCount ~= false end,
+        function(v) headerDb.showZoneCount = v end
+    )
+    table.insert(syncList, cbZoneCount)
+
+    local btnSort = CreateStyledCycleButton(content, "Sorting Mode", 190, 22, SORT_MODES,
+        function() return sortDb.mode or "level" end,
+        function(v) sortDb.mode = v end,
+        "Sort quests by quest level or group them by current zone."
+    )
+    table.insert(syncList, btnSort)
+
+    local cbCompletedBottom = CreateStyledCheckbox(content, "Move Completed Quests to Bottom",
+        "Pushes completed turn-in quests down to the bottom of the list.",
+        function() return sortDb.moveCompletedToBottom == true end,
+        function(v) sortDb.moveCompletedToBottom = v end
+    )
+    table.insert(syncList, cbCompletedBottom)
+
+    local cbActiveTop = CreateStyledCheckbox(content, "Pin Active Quest (Star) to the Top",
+        "Always pins your currently tracked/starred active quest at the very top.",
+        function() return sortDb.activeOnTop ~= false end,
+        function(v) sortDb.activeOnTop = v end
+    )
+    table.insert(syncList, cbActiveTop)
+
+    local function Layout(w)
+        if not w or w < 100 then w = content:GetWidth() or 500 end
+        local y = -10
+        h1:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+        y = y - 30
+
+        if w >= 470 then
+            local colWidth = math.floor((w - 48) / 2)
+            local col1X = 16
+            local col2X = col1X + colWidth + 16
+
+            cbLog:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbLog.Text:SetWidth(colWidth - 32)
+            cbZone:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbZone.Text:SetWidth(colWidth - 32)
+            y = y - 34
+
+            cbAll:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbAll.Text:SetWidth(colWidth - 32)
+            cbMenu:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbMenu.Text:SetWidth(colWidth - 32)
+            y = y - 34
+
+            cbCollapse:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbCollapse.Text:SetWidth(colWidth - 32)
+            y = y - 40
+
+            h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            cbZoneHeaders:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbZoneHeaders.Text:SetWidth(colWidth - 32)
+            cbZoneCount:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbZoneCount.Text:SetWidth(colWidth - 32)
+            y = y - 34
+
+            btnSort:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnSort:SetWidth(math.min(190, colWidth - 20))
+            cbCompletedBottom:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbCompletedBottom.Text:SetWidth(colWidth - 32)
+            y = y - 40
+
+            cbActiveTop:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbActiveTop.Text:SetWidth(colWidth - 32)
+            y = y - 34
+        else
+            local colWidth = w - 36
+            local col1X = 16
+
+            cbLog:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbLog.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbZone:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbZone.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbAll:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbAll.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbMenu:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbMenu.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbCollapse:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbCollapse.Text:SetWidth(colWidth - 32)
+            y = y - 38
+
+            h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            cbZoneHeaders:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbZoneHeaders.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbZoneCount:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbZoneCount.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            btnSort:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnSort:SetWidth(math.min(220, colWidth - 20))
+            y = y - 38
+            cbCompletedBottom:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbCompletedBottom.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbActiveTop:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbActiveTop.Text:SetWidth(colWidth - 32)
+            y = y - 32
+        end
+
+        content:SetHeight(math.abs(y) + 20)
+    end
+
+    content.LayoutTab = Layout
+    Layout(content:GetWidth())
+end
+
+-- TAB 5: Automation & QoL
+local function BuildAutomationTab(content, syncList)
+    local db = ns.db or {}
+    local qolDb = db.qol or {}
+    local socialDb = db.social or {}
+
+    local h1, d1 = CreateSectionHeader(content, "QUEST & LOOT AUTOMATION", 12, 0)
+    local cbFastLoot = CreateStyledCheckbox(content, "Fast Auto Loot (Instant Looting)",
+        "Dramatically accelerates looting by instantly querying and collecting all loot window items simultaneously.",
+        function() return qolDb.fastAutoLoot ~= false end,
+        function(v) qolDb.fastAutoLoot = v end
+    )
+    table.insert(syncList, cbFastLoot)
+
+    local cbAutoAcceptNPC = CreateStyledCheckbox(content, "Auto-Accept Quests from NPCs",
+        "Automatically accepts quests offered by friendly questgiver NPCs.",
+        function() return socialDb.autoAcceptNPC == true end,
+        function(v) socialDb.autoAcceptNPC = v end
+    )
+    table.insert(syncList, cbAutoAcceptNPC)
+
+    local cbAutoAcceptShared = CreateStyledCheckbox(content, "Auto-Accept Quests Shared by Party",
+        "Automatically accepts quests shared by group or raid members.",
+        function() return socialDb.autoAcceptShared == true end,
+        function(v) socialDb.autoAcceptShared = v end
+    )
+    table.insert(syncList, cbAutoAcceptShared)
+
+    local cbAutoTurnIn = CreateStyledCheckbox(content, "Auto-Turn In Quests (Single Reward)",
+        "Automatically turns in completed quests when there is 0 or only 1 item reward choice.",
+        function() return socialDb.autoTurnIn == true end,
+        function(v) socialDb.autoTurnIn = v end
+    )
+    table.insert(syncList, cbAutoTurnIn)
+
+    local cbShiftBypass = CreateStyledCheckbox(content, "Hold Shift to Temporarily Bypass",
+        "Holding Shift disables automated loot and quest accept/turn-in while interacting.",
+        function() return socialDb.shiftBypass ~= false end,
+        function(v) socialDb.shiftBypass = v end
+    )
+    table.insert(syncList, cbShiftBypass)
+
+    local h2, d2 = CreateSectionHeader(content, "MERCHANT & SOCIAL QOL", 12, 0)
+    local cbSellJunk = CreateStyledCheckbox(content, "Auto-Sell Grey Junk Items at Vendors",
+        "Automatically sells all low-quality grey items when opening vendor merchant frames.",
+        function() return qolDb.autoSellJunk == true end,
+        function(v) qolDb.autoSellJunk = v end
+    )
+    table.insert(syncList, cbSellJunk)
+
+    local cbAutoRepair = CreateStyledCheckbox(content, "Auto-Repair Equipment at Vendors",
+        "Automatically repairs all damaged gear and weapons when speaking with repair vendors.",
+        function() return qolDb.autoRepair == true end,
+        function(v) qolDb.autoRepair = v end
+    )
+    table.insert(syncList, cbAutoRepair)
+
+    local cbAnnounceQuest = CreateStyledCheckbox(content, "Announce Full Quest Complete to Party",
+        "Sends a friendly announcement to party chat when you complete all objectives for a quest.",
+        function() return socialDb.announceQuestComplete ~= false end,
+        function(v) socialDb.announceQuestComplete = v end
+    )
+    table.insert(syncList, cbAnnounceQuest)
+
+    local cbAnnounceObj = CreateStyledCheckbox(content, "Announce Objective Progress to Party",
+        "Announces individual objective completions (e.g. 8/8 Kobold Ears) to party chat.",
+        function() return socialDb.announceObjectiveComplete ~= false end,
+        function(v) socialDb.announceObjectiveComplete = v end
+    )
+    table.insert(syncList, cbAnnounceObj)
+
+    local function Layout(w)
+        if not w or w < 100 then w = content:GetWidth() or 500 end
+        local y = -10
+        h1:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+        y = y - 30
+
+        if w >= 470 then
+            local colWidth = math.floor((w - 48) / 2)
+            local col1X = 16
+            local col2X = col1X + colWidth + 16
+
+            cbFastLoot:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbFastLoot.Text:SetWidth(colWidth - 32)
+            cbAutoAcceptNPC:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbAutoAcceptNPC.Text:SetWidth(colWidth - 32)
+            y = y - 34
+
+            cbAutoAcceptShared:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbAutoAcceptShared.Text:SetWidth(colWidth - 32)
+            cbAutoTurnIn:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbAutoTurnIn.Text:SetWidth(colWidth - 32)
+            y = y - 34
+
+            cbShiftBypass:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbShiftBypass.Text:SetWidth(colWidth - 32)
+            y = y - 40
+
+            h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            cbSellJunk:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbSellJunk.Text:SetWidth(colWidth - 32)
+            cbAutoRepair:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbAutoRepair.Text:SetWidth(colWidth - 32)
+            y = y - 34
+
+            cbAnnounceQuest:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbAnnounceQuest.Text:SetWidth(colWidth - 32)
+            cbAnnounceObj:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbAnnounceObj.Text:SetWidth(colWidth - 32)
+            y = y - 34
+        else
+            local colWidth = w - 36
+            local col1X = 16
+
+            cbFastLoot:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbFastLoot.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbAutoAcceptNPC:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbAutoAcceptNPC.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbAutoAcceptShared:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbAutoAcceptShared.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbAutoTurnIn:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbAutoTurnIn.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbShiftBypass:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbShiftBypass.Text:SetWidth(colWidth - 32)
+            y = y - 38
+
+            h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            cbSellJunk:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbSellJunk.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbAutoRepair:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbAutoRepair.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbAnnounceQuest:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbAnnounceQuest.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbAnnounceObj:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbAnnounceObj.Text:SetWidth(colWidth - 32)
+            y = y - 32
+        end
+
+        content:SetHeight(math.abs(y) + 20)
+    end
+
+    content.LayoutTab = Layout
+    Layout(content:GetWidth())
+end
+
+-- TAB 6: Wayfinder & Audio
+local function BuildWayfinderTab(content, syncList)
+    local db = ns.db or {}
+    local wfDb = db.wayfinder or {}
+    local soundDb = db.sound or {}
+
+    local h1, d1 = CreateSectionHeader(content, "WAYFINDER HUD NAVIGATION", 12, 0)
+    local cbHUDArrow = CreateStyledCheckbox(content, "Enable Floating HUD Arrow",
+        "Shows a floating navigation arrow pointing toward your active quest objective.",
+        function() return wfDb.enableHUDArrow ~= false end,
+        function(v) wfDb.enableHUDArrow = v end
+    )
+    table.insert(syncList, cbHUDArrow)
+
+    local cbInlineArrow = CreateStyledCheckbox(content, "Enable Inline Tracker Arrow",
+        "Shows a mini directional arrow directly inside the tracker next to each quest.",
+        function() return wfDb.enableInlineArrow ~= false end,
+        function(v) wfDb.enableInlineArrow = v end
+    )
+    table.insert(syncList, cbInlineArrow)
+
+    local slArrowScale = CreateStyledSlider(content, "BFQ_SlWfScale", "HUD Arrow Scale:",
+        "Scales the size of the floating HUD navigation arrow (60% - 160%).",
+        0.6, 1.6, 0.05,
+        function() return wfDb.arrowScale or 1.0 end,
+        function(v) wfDb.arrowScale = v end,
+        "%.2f"
+    )
+    table.insert(syncList, slArrowScale)
+
+    local slInlineSize = CreateStyledSlider(content, "BFQ_SlWfInlineSize", "Inline Arrow Size:",
+        "Pixel dimensions of mini arrows in the tracker (14 - 32px).",
+        14, 32, 1,
+        function() return wfDb.inlineArrowSize or 22 end,
+        function(v) wfDb.inlineArrowSize = v end,
+        "%d px"
+    )
+    table.insert(syncList, slInlineSize)
+
+    local btnUnits = CreateStyledCycleButton(content, "Distance Units", 190, 22, DISTANCE_UNITS,
+        function() return wfDb.distanceUnit or "imperial" end,
+        function(v) wfDb.distanceUnit = v end,
+        "Choose Imperial yards/miles or Metric meters/kilometers for distance readouts."
+    )
+    table.insert(syncList, btnUnits)
+
+    local cbArrivalSound = CreateStyledCheckbox(content, "Play Arrival Chime",
+        "Plays an arrival sound effect when entering destination range.",
+        function() return wfDb.playArrivalSound ~= false end,
+        function(v) wfDb.playArrivalSound = v end
+    )
+    table.insert(syncList, cbArrivalSound)
+
+    local cbHideCombat = CreateStyledCheckbox(content, "Hide Waypoint in Combat",
+        "Hides waypoint arrows and distance readouts during combat.",
+        function() return wfDb.hideInCombat ~= false end,
+        function(v) wfDb.hideInCombat = v end
+    )
+    table.insert(syncList, cbHideCombat)
+
+    local h2, d2 = CreateSectionHeader(content, "AUDIO & SOUND EFFECTS", 12, 0)
+    local cbCompleteSound = CreateStyledCheckbox(content, "Play Sound on Quest Complete",
+        "Plays an audio alert when you achieve 100% completion on a quest.",
+        function() return soundDb.enableCompleteSound ~= false end,
+        function(v) soundDb.enableCompleteSound = v end
+    )
+    table.insert(syncList, cbCompleteSound)
+
+    local slCompleteVol = CreateStyledSlider(content, "BFQ_SlVolComplete", "Complete Sound Volume:",
+        "Volume percentage for quest completion sounds.",
+        10, 100, 5,
+        function() return soundDb.completeSoundVolume or 100 end,
+        function(v) soundDb.completeSoundVolume = v end,
+        "%d%%"
+    )
+    table.insert(syncList, slCompleteVol)
+
+    local cbObjSound = CreateStyledCheckbox(content, "Play Sound on Objective Update",
+        "Plays a subtle chime whenever objective progress advances (e.g. 3/4).",
+        function() return soundDb.enableObjectiveSound ~= false end,
+        function(v) soundDb.enableObjectiveSound = v end
+    )
+    table.insert(syncList, cbObjSound)
+
+    local slObjVol = CreateStyledSlider(content, "BFQ_SlVolObj", "Objective Sound Volume:",
+        "Volume percentage for objective update sounds.",
+        10, 100, 5,
+        function() return soundDb.objectiveSoundVolume or 100 end,
+        function(v) soundDb.objectiveSoundVolume = v end,
+        "%d%%"
+    )
+    table.insert(syncList, slObjVol)
+
+    local function Layout(w)
+        if not w or w < 100 then w = content:GetWidth() or 500 end
+        local y = -10
+        h1:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+        y = y - 30
+
+        if w >= 470 then
+            local colWidth = math.floor((w - 48) / 2)
+            local col1X = 16
+            local col2X = col1X + colWidth + 16
+
+            cbHUDArrow:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbHUDArrow.Text:SetWidth(colWidth - 32)
+            cbInlineArrow:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbInlineArrow.Text:SetWidth(colWidth - 32)
+            y = y - 34
+
+            slArrowScale:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            slArrowScale:SetWidth(math.min(190, colWidth - 20))
+            slInlineSize:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            slInlineSize:SetWidth(math.min(190, colWidth - 20))
+            y = y - 48
+
+            btnUnits:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnUnits:SetWidth(math.min(190, colWidth - 20))
+            cbArrivalSound:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbArrivalSound.Text:SetWidth(colWidth - 32)
+            y = y - 38
+
+            cbHideCombat:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbHideCombat.Text:SetWidth(colWidth - 32)
+            y = y - 40
+
+            h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            cbCompleteSound:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbCompleteSound.Text:SetWidth(colWidth - 32)
+            slCompleteVol:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            slCompleteVol:SetWidth(math.min(190, colWidth - 20))
+            y = y - 48
+
+            cbObjSound:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbObjSound.Text:SetWidth(colWidth - 32)
+            slObjVol:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            slObjVol:SetWidth(math.min(190, colWidth - 20))
+            y = y - 48
+        else
+            local colWidth = w - 36
+            local col1X = 16
+
+            cbHUDArrow:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbHUDArrow.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbInlineArrow:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbInlineArrow.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            slArrowScale:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            slArrowScale:SetWidth(math.min(220, colWidth - 20))
+            y = y - 46
+            slInlineSize:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            slInlineSize:SetWidth(math.min(220, colWidth - 20))
+            y = y - 46
+            btnUnits:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnUnits:SetWidth(math.min(220, colWidth - 20))
+            y = y - 38
+            cbArrivalSound:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbArrivalSound.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbHideCombat:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbHideCombat.Text:SetWidth(colWidth - 32)
+            y = y - 38
+
+            h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            cbCompleteSound:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbCompleteSound.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            slCompleteVol:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            slCompleteVol:SetWidth(math.min(220, colWidth - 20))
+            y = y - 46
+            cbObjSound:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbObjSound.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            slObjVol:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            slObjVol:SetWidth(math.min(220, colWidth - 20))
+            y = y - 46
+        end
+
+        content:SetHeight(math.abs(y) + 20)
+    end
+
+    content.LayoutTab = Layout
+    Layout(content:GetWidth())
+end
+
+-- TAB 7: DataBars
+local function BuildDataBarsTab(content, syncList)
+    local db = ns.db or {}
+    local dataDb = db.databars or {}
+
+    local h1, d1 = CreateSectionHeader(content, "EXPERIENCE & QUEST LOG PROGRESS BAR", 12, 0)
+    local cbXPBar = CreateStyledCheckbox(content, "Enable Standalone XP DataBar",
+        "Renders a customizable experience and completed quest turn-in progress bar.",
+        function() return dataDb.enableXPBar == true end,
+        function(v) dataDb.enableXPBar = v end
+    )
+    table.insert(syncList, cbXPBar)
+
+    local btnXPDock = CreateStyledCycleButton(content, "XP Dock Mode", 190, 22, XP_DOCK_MODES,
+        function() return dataDb.xpDockMode or "tracker_bottom" end,
+        function(v) dataDb.xpDockMode = v end,
+        "Dock experience bar directly underneath the tracker or unlock for free movement."
+    )
+    table.insert(syncList, btnXPDock)
+
+    local slXPHeight = CreateStyledSlider(content, "BFQ_SlXpHeight", "XP Bar Height:",
+        "Pixel height of the experience bar (8 - 32px).",
+        8, 32, 1,
+        function() return dataDb.xpHeight or 14 end,
+        function(v) dataDb.xpHeight = v end,
+        "%d px"
+    )
+    table.insert(syncList, slXPHeight)
+
+    local cbQuestXP = CreateStyledCheckbox(content, "Show Completed Turn-in Ghost Bar",
+        "Overlays anticipated experience from completed turn-in quests onto the XP bar.",
+        function() return dataDb.showCompletedQuestXP ~= false end,
+        function(v) dataDb.showCompletedQuestXP = v end
+    )
+    table.insert(syncList, cbQuestXP)
+
+    local cbDingReady = CreateStyledCheckbox(content, "Show [Ding Ready!] Alert",
+        "Displays [Ding Ready!] in glowing gold when completed quests provide enough XP to level.",
+        function() return dataDb.showDingReadyText ~= false end,
+        function(v) dataDb.showDingReadyText = v end
+    )
+    table.insert(syncList, cbDingReady)
+
+    local cbRestedXP = CreateStyledCheckbox(content, "Show Rested XP Bonus Segment",
+        "Renders rested experience bonus segment in blue.",
+        function() return dataDb.showRestedXP ~= false end,
+        function(v) dataDb.showRestedXP = v end
+    )
+    table.insert(syncList, cbRestedXP)
+
+    local h2, d2 = CreateSectionHeader(content, "LOCATION & COORDINATES HEADER BAR", 12, 0)
+    local cbLocBar = CreateStyledCheckbox(content, "Enable Location & Coordinates Bar",
+        "Renders a precision zone, subzone, and coordinates bar.",
+        function() return dataDb.enableLocationBar == true end,
+        function(v) dataDb.enableLocationBar = v end
+    )
+    table.insert(syncList, cbLocBar)
+
+    local btnLocDock = CreateStyledCycleButton(content, "Loc Dock Mode", 190, 22, LOC_DOCK_MODES,
+        function() return dataDb.locDockMode or "tracker_top" end,
+        function(v) dataDb.locDockMode = v end,
+        "Dock location bar above tracker, above minimap, or unlock for free movement."
+    )
+    table.insert(syncList, btnLocDock)
+
+    local cbCoords = CreateStyledCheckbox(content, "Show Precision Coordinates",
+        "Displays player map coordinates (e.g. 45.2, 58.6) on the location bar.",
+        function() return dataDb.showCoords ~= false end,
+        function(v) dataDb.showCoords = v end
+    )
+    table.insert(syncList, cbCoords)
+
+    local cbTerritory = CreateStyledCheckbox(content, "Color by PvP Territory Status",
+        "Colors zone and subzone names by PvP status (Sanctuary, Friendly, Contested, Hostile).",
+        function() return dataDb.colorTerritory ~= false end,
+        function(v) dataDb.colorTerritory = v end
+    )
+    table.insert(syncList, cbTerritory)
+
+    local function Layout(w)
+        if not w or w < 100 then w = content:GetWidth() or 500 end
+        local y = -10
+        h1:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+        y = y - 30
+
+        if w >= 470 then
+            local colWidth = math.floor((w - 48) / 2)
+            local col1X = 16
+            local col2X = col1X + colWidth + 16
+
+            cbXPBar:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbXPBar.Text:SetWidth(colWidth - 32)
+            btnXPDock:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            btnXPDock:SetWidth(math.min(190, colWidth - 20))
+            y = y - 40
+
+            slXPHeight:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            slXPHeight:SetWidth(math.min(190, colWidth - 20))
+            cbQuestXP:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbQuestXP.Text:SetWidth(colWidth - 32)
+            y = y - 48
+
+            cbDingReady:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbDingReady.Text:SetWidth(colWidth - 32)
+            cbRestedXP:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbRestedXP.Text:SetWidth(colWidth - 32)
+            y = y - 34
+
+            h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            cbLocBar:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbLocBar.Text:SetWidth(colWidth - 32)
+            btnLocDock:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            btnLocDock:SetWidth(math.min(190, colWidth - 20))
+            y = y - 40
+
+            cbCoords:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbCoords.Text:SetWidth(colWidth - 32)
+            cbTerritory:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbTerritory.Text:SetWidth(colWidth - 32)
+            y = y - 34
+        else
+            local colWidth = w - 36
+            local col1X = 16
+
+            cbXPBar:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbXPBar.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            btnXPDock:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnXPDock:SetWidth(math.min(220, colWidth - 20))
+            y = y - 38
+            slXPHeight:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            slXPHeight:SetWidth(math.min(220, colWidth - 20))
+            y = y - 46
+            cbQuestXP:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbQuestXP.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbDingReady:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbDingReady.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbRestedXP:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbRestedXP.Text:SetWidth(colWidth - 32)
+            y = y - 38
+
+            h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            cbLocBar:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbLocBar.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            btnLocDock:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnLocDock:SetWidth(math.min(220, colWidth - 20))
+            y = y - 38
+            cbCoords:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbCoords.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbTerritory:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbTerritory.Text:SetWidth(colWidth - 32)
+            y = y - 32
+        end
+
+        content:SetHeight(math.abs(y) + 20)
+    end
+
+    content.LayoutTab = Layout
+    Layout(content:GetWidth())
+end
+
+-- TAB 8: Profiles
+local function BuildProfilesTab(content, syncList)
+    local h1, d1 = CreateSectionHeader(content, "PROFILE MANAGEMENT", 12, 0)
+
+    local lblCurrent = content:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    lblCurrent:SetPoint("TOPLEFT", content, "TOPLEFT", 16, -42)
+    local function UpdateCurrent()
+        local cur = (ns.dbObject and ns.dbObject.GetCurrentProfile and ns.dbObject:GetCurrentProfile()) or "Default"
+        lblCurrent:SetText("Active Profile: |cFFFFD100" .. cur .. "|r")
+    end
+    UpdateCurrent()
+
+    local btnReset = CreateStyledButton(content, "Reset to Defaults", 160, 24, function()
+        if ns.dbObject and ns.dbObject.ResetProfile then
+            ns.dbObject:ResetProfile()
+            if ns.Tracker and ns.Tracker.UpdateSettings then ns.Tracker:UpdateSettings() end
+            if ns.Print then ns.Print("Active profile reset to defaults.") end
+            UpdateCurrent()
+        end
+    end, "Resets all quest tracker settings in the active profile back to defaults.")
+
+    local function Layout(w)
+        if not w or w < 100 then w = content:GetWidth() or 500 end
+        local y = -10
+        h1:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+        y = y - 34
+
+        lblCurrent:ClearAllPoints()
+        lblCurrent:SetPoint("TOPLEFT", content, "TOPLEFT", 16, y)
+        y = y - 30
+
+        btnReset:ClearAllPoints()
+        btnReset:SetPoint("TOPLEFT", content, "TOPLEFT", 16, y)
+        y = y - 40
+
+        content:SetHeight(math.abs(y) + 20)
+    end
+
+    content.LayoutTab = Layout
+    Layout(content:GetWidth())
+end
+
+--[[-----------------------------------------------------------------------------
+    Master Native Options Panel for Quest Tracker
+-------------------------------------------------------------------------------]]
+function Config:BuildNativeOptions(containerFrame, isMasterHub)
     if not containerFrame then return end
 
     if not self.initialized then
         self:InitializeOptions()
     end
 
-    local AceGUI = LibStub and LibStub("AceGUI-3.0", true)
-    if not (AceGUI and ACD) then return end
+    if containerFrame.nativeOptionsBuilt then
+        if containerFrame.SyncAll then containerFrame.SyncAll() end
+        return containerFrame
+    end
 
-    local aceContainer = containerFrame.aceContainer
-    if not aceContainer then
-        aceContainer = AceGUI:Create("SimpleGroup")
-        aceContainer.frame:SetParent(containerFrame)
-        aceContainer.frame:ClearAllPoints()
-        aceContainer.frame:SetPoint("TOPLEFT", containerFrame, "TOPLEFT", 0, 0)
-        aceContainer.frame:SetPoint("BOTTOMRIGHT", containerFrame, "BOTTOMRIGHT", 0, 0)
-        aceContainer:SetLayout("Fill")
-        aceContainer.frame:Show()
-        containerFrame.aceContainer = aceContainer
+    local tabs = {
+        { id = "general",    label = "General",        builder = BuildGeneralTab },
+        { id = "quests",     label = "Quests & Items", builder = BuildQuestsTab },
+        { id = "appearance", label = "Colors & Fonts", builder = BuildColorsTab },
+        { id = "headers",    label = "Headers & Sort", builder = BuildHeadersTab },
+        { id = "automation", label = "Automation",     builder = BuildAutomationTab },
+        { id = "wayfinder",  label = "Wayfinder/Audio",builder = BuildWayfinderTab },
+        { id = "databars",   label = "DataBars",       builder = BuildDataBarsTab },
+        { id = "profiles",   label = "Profiles",       builder = BuildProfilesTab },
+    }
 
-        containerFrame:HookScript("OnSizeChanged", function(self, w, h)
-            if self.aceContainer and self.aceContainer.frame:IsShown() then
-                self.aceContainer:SetWidth(w)
-                self.aceContainer:SetHeight(h)
-                self.aceContainer:DoLayout()
+    local tabBar = CreateFrame("Frame", nil, containerFrame)
+    tabBar:SetHeight(28)
+    tabBar:SetPoint("TOPLEFT", containerFrame, "TOPLEFT", 0, 0)
+    tabBar:SetPoint("TOPRIGHT", containerFrame, "TOPRIGHT", 0, 0)
+
+    local insetBox = CreateFrame("Frame", nil, containerFrame, BACKDROP_TEMPLATE)
+    insetBox:SetPoint("TOPLEFT", tabBar, "BOTTOMLEFT", 0, -4)
+    insetBox:SetPoint("BOTTOMRIGHT", containerFrame, "BOTTOMRIGHT", -4, 4)
+    insetBox:SetBackdrop(INSET_BACKDROP)
+    insetBox:SetBackdropColor(unpack(COLORS.contentBg))
+    insetBox:SetBackdropBorderColor(unpack(COLORS.goldMuted))
+
+    local tabButtons = {}
+    local tabScrolls = {}
+    local syncLists = {}
+    local tabChildren = {}
+
+    local function SelectTab(tabID)
+        for _, t in ipairs(tabs) do
+            local btn = tabButtons[t.id]
+            local scroll = tabScrolls[t.id]
+            if t.id == tabID then
+                if btn then
+                    btn:SetBackdropColor(unpack(COLORS.tabActive))
+                    btn:SetBackdropBorderColor(unpack(COLORS.goldBorder))
+                    btn.label:SetTextColor(COLORS.goldText[1], COLORS.goldText[2], COLORS.goldText[3])
+                end
+                if scroll then
+                    scroll:Show()
+                    local child = tabChildren[t.id]
+                    if child and child.LayoutTab then
+                        child.LayoutTab(scroll:GetWidth() - 24)
+                    end
+                    if syncLists[t.id] then
+                        for _, w in ipairs(syncLists[t.id]) do
+                            if w.Sync then w:Sync() end
+                        end
+                    end
+                end
+            else
+                if btn then
+                    btn:SetBackdropColor(unpack(COLORS.tabNormal))
+                    btn:SetBackdropBorderColor(unpack(COLORS.goldMuted))
+                    btn.label:SetTextColor(COLORS.whiteText[1], COLORS.whiteText[2], COLORS.whiteText[3])
+                end
+                if scroll then scroll:Hide() end
+            end
+        end
+    end
+
+    local function LayoutTabBar(w)
+        if not w or w < 100 then w = containerFrame:GetWidth() or 540 end
+        local gap = 4
+
+        if w >= 620 then
+            -- 1 Row
+            tabBar:SetHeight(28)
+            local btnW = math.floor((w - ((#tabs - 1) * gap)) / #tabs)
+            if btnW > 92 then btnW = 92 end
+            local curX = 0
+            for _, t in ipairs(tabs) do
+                local b = tabButtons[t.id]
+                if b then
+                    b:SetSize(btnW, 24)
+                    b:ClearAllPoints()
+                    b:SetPoint("TOPLEFT", tabBar, "TOPLEFT", curX, 0)
+                end
+                curX = curX + btnW + gap
+            end
+        else
+            -- 2 Rows (Line break to prevent cramping)
+            tabBar:SetHeight(52)
+            local row1Count = 4
+            local btnW1 = math.floor((w - ((row1Count - 1) * gap)) / row1Count)
+            local curX = 0
+            for i = 1, row1Count do
+                local t = tabs[i]
+                local b = tabButtons[t.id]
+                if b then
+                    b:SetSize(btnW1, 22)
+                    b:ClearAllPoints()
+                    b:SetPoint("TOPLEFT", tabBar, "TOPLEFT", curX, 0)
+                end
+                curX = curX + btnW1 + gap
+            end
+            local row2Count = #tabs - row1Count
+            local btnW2 = math.floor((w - ((row2Count - 1) * gap)) / row2Count)
+            curX = 0
+            for i = row1Count + 1, #tabs do
+                local t = tabs[i]
+                local b = tabButtons[t.id]
+                if b then
+                    b:SetSize(btnW2, 22)
+                    b:ClearAllPoints()
+                    b:SetPoint("TOPLEFT", tabBar, "TOPLEFT", curX, -26)
+                end
+                curX = curX + btnW2 + gap
+            end
+        end
+    end
+
+    for _, t in ipairs(tabs) do
+        local tID = t.id
+        local btn = CreateFrame("Button", nil, tabBar, BACKDROP_TEMPLATE)
+        btn:SetSize(72, 24)
+        btn:SetBackdrop(INSET_BACKDROP)
+        btn:SetBackdropColor(unpack(COLORS.tabNormal))
+        btn:SetBackdropBorderColor(unpack(COLORS.goldMuted))
+
+        local lbl = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        lbl:SetPoint("CENTER", btn, "CENTER", 0, 0)
+        lbl:SetText(t.label)
+        btn.label = lbl
+
+        btn:SetScript("OnClick", function() SelectTab(tID) end)
+        tabButtons[tID] = btn
+
+        -- ScrollFrame for this tab inside insetBox
+        local scroll = CreateFrame("ScrollFrame", "BFQ_Scroll_" .. tID, insetBox, "UIPanelScrollFrameTemplate")
+        scroll:SetPoint("TOPLEFT", insetBox, "TOPLEFT", 6, -6)
+        scroll:SetPoint("BOTTOMRIGHT", insetBox, "BOTTOMRIGHT", -26, 6)
+
+        local child = CreateFrame("Frame", nil, scroll)
+        child:SetSize(500, 500)
+        scroll:SetScrollChild(child)
+
+        local updateScroll = SetupAutoScroll(scroll, child)
+
+        local sList = {}
+        syncLists[tID] = sList
+        t.builder(child, sList)
+        tabChildren[tID] = child
+
+        scroll:HookScript("OnSizeChanged", function(self, sw)
+            if sw and sw > 60 and child.LayoutTab then
+                child.LayoutTab(sw - 24)
+                if updateScroll then updateScroll() end
             end
         end)
+
+        scroll:Hide()
+        tabScrolls[tID] = scroll
     end
 
-    ACD:Open("BleakfiberQuestTracker", aceContainer)
-    if aceContainer.DoLayout then
-        aceContainer:DoLayout()
+    local function SyncAll()
+        for _, sList in pairs(syncLists) do
+            for _, widget in ipairs(sList) do
+                if widget.Sync then widget:Sync() end
+            end
+        end
     end
+    containerFrame.SyncAll = SyncAll
+
+    containerFrame:HookScript("OnSizeChanged", function(self, w)
+        if w and w > 60 then
+            LayoutTabBar(w)
+        end
+    end)
+
+    LayoutTabBar(containerFrame:GetWidth())
+    SelectTab("general")
+    SyncAll()
+
+    containerFrame.nativeOptionsBuilt = true
+    return containerFrame
+end
+
+function Config:EmbedOptionsIntoContainer(containerFrame)
+    if not containerFrame then return end
+    return Config:BuildNativeOptions(containerFrame, true)
 end
 
 function Config:GetOrCreateStandaloneFrame()
@@ -4423,7 +6122,26 @@ function Config:GetOrCreateStandaloneFrame()
     -- Version Subtitle
     local versionText = titleBar:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     versionText:SetPoint("LEFT", titleText, "RIGHT", 8, -1)
-    versionText:SetText("v" .. (ns.version or "1.0.16"))
+    versionText:SetText("v" .. (ns.version or "1.0.18"))
+
+    -- Title Bar Action Buttons
+    local refreshBtn = CreateStyledButton(titleBar, "Refresh", 65, 20, function()
+        if ns.Tracker and ns.Tracker.UpdateSettings then ns.Tracker:UpdateSettings() end
+        if f.contentPane and f.contentPane.SyncAll then f.contentPane.SyncAll() end
+        if ns.Print then ns.Print("Quest Tracker settings refreshed.") end
+    end, "Reapplies all visual settings and refreshes quest tracker.")
+    refreshBtn:SetPoint("RIGHT", titleBar, "RIGHT", -6, 0)
+
+    local btnMovers = CreateStyledButton(titleBar, "Toggle Movers", 95, 20, function()
+        if ns.Tracker and ns.Tracker.SetLocked then
+            local locked = ns.db and ns.db.isLocked
+            ns.Tracker:SetLocked(not locked)
+            if ns.Print then
+                ns.Print(string.format("Quest Tracker %s.", (not locked) and "|cFFFF0000Locked|r" or "|cFF00FF00Unlocked|r"))
+            end
+        end
+    end, "Unlocks or locks quest tracker anchor for click-and-drag repositioning.")
+    btnMovers:SetPoint("RIGHT", refreshBtn, "LEFT", -6, 0)
 
     -- Gold Divider below Title Bar
     local titleDivider = f:CreateTexture(nil, "ARTWORK")

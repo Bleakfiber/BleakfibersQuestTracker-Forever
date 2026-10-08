@@ -14,15 +14,22 @@
 --]]
 
 local addonName, ns = ...
+
+-- Localized Lua & WoW API bindings for performance & garbage reduction
+local pairs, ipairs, type, tostring = pairs, ipairs, type, tostring
+local string_lower, string_match, string_gsub, string_find = string.lower, string.match, string.gsub, string.find
+local table_insert = table.insert
+local wipe = table.wipe or wipe or function(t) for k in pairs(t) do t[k] = nil end return t end
+
 local CrossZoneModule = {}
 ns.CrossZoneModule = CrossZoneModule
 
 -- Normalize zone strings for reliable case-insensitive matching
 local function NormalizeZone(str)
     if not str or str == "" then return "" end
-    local s = string.lower(str)
-    s = s:gsub("^the%s+", "")
-    s = s:match("^%s*(.-)%s*$") or s
+    local s = string_lower(str)
+    s = string_gsub(s, "^the%s+", "")
+    s = string_match(s, "^%s*(.-)%s*$") or s
     return s
 end
 
@@ -164,6 +171,10 @@ local HUB_TO_ZONE = {
     ["moonbrook"] = "westfall",
     ["saldean's farm"] = "westfall",
     ["alexston farmstead"] = "westfall",
+    ["furlbrow's pumpkin farm"] = "westfall",
+    ["furlbrow"] = "westfall",
+    ["jangolode mine"] = "westfall",
+    ["gold coast quarry"] = "westfall",
 
     -- Redridge Mountains
     ["lakeshire"] = "redridge mountains",
@@ -339,53 +350,75 @@ local HUB_TO_ZONE = {
     ["darkspear strand"] = "darkspear islands",
 }
 
+-- Pre-compile and pre-escape patterns to eliminate repetitive gsub churn inside text scanning loops
+local PRECOMPILED_ZONES = {}
+for _, zone in ipairs(ALL_KNOWN_ZONES) do
+    table_insert(PRECOMPILED_ZONES, {
+        zone = zone,
+        len = #zone,
+        escaped = string_gsub(zone, "%-", "%%-"),
+    })
+end
+
+local PRECOMPILED_HUBS = {}
+for hub, parentZone in pairs(HUB_TO_ZONE) do
+    table_insert(PRECOMPILED_HUBS, {
+        hub = hub,
+        parentZone = parentZone,
+        escaped = string_gsub(hub, "%-", "%%-"),
+    })
+end
+
 -- =========================================================================
 -- 4. Dynamic Objective & Full Quest Text Scanner
 -- Scans strings for zone names, prepositions, and settlement hubs.
 -- =========================================================================
 local function ParseZonesFromText(text)
     if not text or text == "" then return nil end
-    local lower = string.lower(text)
-    local found = {}
-    local seen = {}
+    local lower = string_lower(text)
+    local found = nil
+    local seen = nil
 
     local function AddFound(zoneName)
-        if zoneName and not seen[zoneName] then
-            seen[zoneName] = true
-            table.insert(found, zoneName)
+        if zoneName then
+            if not seen then seen = {} end
+            if not seen[zoneName] then
+                seen[zoneName] = true
+                if not found then found = {} end
+                table_insert(found, zoneName)
+            end
         end
     end
 
-    -- 1. Check Prepositional Zone Patterns ("in <zone>", "to <zone>", "at <zone>", etc.)
+    -- 1. Check Prepositional Zone Patterns using pre-escaped regex tokens
     -- Note: We deliberately exclude "of <zone>" because lore titles like "Mountaineer of Ironforge"
     -- or "Bishop of Stormwind" refer to NPC origins, not quest destinations.
-    for _, zone in ipairs(ALL_KNOWN_ZONES) do
-        local escaped = zone:gsub("%-", "%%-")
-        if lower:find("%f[%a]in%s+" .. escaped .. "%f[%A]")
-            or lower:find("%f[%a]to%s+" .. escaped .. "%f[%A]")
-            or lower:find("%f[%a]at%s+" .. escaped .. "%f[%A]")
-            or lower:find("%f[%a]into%s+" .. escaped .. "%f[%A]")
-            or lower:find("%f[%a]from%s+" .. escaped .. "%f[%A]")
-            or lower:find("%f[%a]near%s+" .. escaped .. "%f[%A]")
-            or lower:find("%f[%a]around%s+" .. escaped .. "%f[%A]")
-            or lower:find("%f[%a]within%s+" .. escaped .. "%f[%A]")
-            or lower:find("%f[%a]outside%s+" .. escaped .. "%f[%A]") then
-            AddFound(zone)
-        elseif #zone >= 7 and lower:find("%f[%a]" .. escaped .. "%f[%A]") then
+    for _, zInfo in ipairs(PRECOMPILED_ZONES) do
+        local escaped = zInfo.escaped
+        if string_find(lower, "%f[%a]in%s+" .. escaped .. "%f[%A]")
+            or string_find(lower, "%f[%a]to%s+" .. escaped .. "%f[%A]")
+            or string_find(lower, "%f[%a]at%s+" .. escaped .. "%f[%A]")
+            or string_find(lower, "%f[%a]into%s+" .. escaped .. "%f[%A]")
+            or string_find(lower, "%f[%a]from%s+" .. escaped .. "%f[%A]")
+            or string_find(lower, "%f[%a]near%s+" .. escaped .. "%f[%A]")
+            or string_find(lower, "%f[%a]around%s+" .. escaped .. "%f[%A]")
+            or string_find(lower, "%f[%a]within%s+" .. escaped .. "%f[%A]")
+            or string_find(lower, "%f[%a]outside%s+" .. escaped .. "%f[%A]") then
+            AddFound(zInfo.zone)
+        elseif zInfo.len >= 7 and string_find(lower, "%f[%a]" .. escaped .. "%f[%A]") then
             -- Direct mention of distinctive zones (e.g. "riverlands", "riverglades", "zephras isles", etc.)
-            AddFound(zone)
+            AddFound(zInfo.zone)
         end
     end
 
-    -- 2. Check Settlement / Hub Mappings
-    for hub, parentZone in pairs(HUB_TO_ZONE) do
-        local escapedHub = hub:gsub("%-", "%%-")
-        if lower:find("%f[%a]" .. escapedHub .. "%f[%A]") then
-            AddFound(parentZone)
+    -- 2. Check Settlement / Hub Mappings using pre-escaped regex tokens
+    for _, hInfo in ipairs(PRECOMPILED_HUBS) do
+        if string_find(lower, "%f[%a]" .. hInfo.escaped .. "%f[%A]") then
+            AddFound(hInfo.parentZone)
         end
     end
 
-    return #found > 0 and found or nil
+    return found
 end
 
 -- Cache for quest text blocks to avoid re-querying every frame
@@ -396,6 +429,23 @@ local function GetQuestTexts(questID, questLogIndex)
     if not questID then return {}, nil end
     if questObjCache[questID] then
         return questObjCache[questID], questDescCache[questID]
+    end
+
+    if not questLogIndex and questID then
+        if C_QuestLog and C_QuestLog.GetLogIndexForQuestID then
+            local idx = C_QuestLog.GetLogIndexForQuestID(questID)
+            if idx and idx > 0 then questLogIndex = idx end
+        end
+        if not questLogIndex and GetNumQuestLogEntries and GetQuestLogTitle then
+            local count = GetNumQuestLogEntries() or 0
+            for i = 1, count do
+                local _, _, _, isHeader, _, _, _, qID = GetQuestLogTitle(i)
+                if not isHeader and qID == questID then
+                    questLogIndex = i
+                    break
+                end
+            end
+        end
     end
 
     local objTexts = {}
@@ -456,6 +506,8 @@ local function GetQuestTexts(questID, questLogIndex)
     return objTexts, descText
 end
 
+local staticNormValid = {}
+
 -- =========================================================================
 -- 5. Main Evaluation Entrypoint called by StandaloneTracker
 -- 100% Dynamic: Evaluates active quest objectives & full quest text in real time.
@@ -470,8 +522,9 @@ function CrossZoneModule:MatchesCurrentZone(questID, questLogIndex, validZones)
         return false
     end
 
-    -- Normalize player's valid zones
-    local normValid = {}
+    -- Normalize player's valid zones using static table (zero allocation)
+    local normValid = staticNormValid
+    wipe(normValid)
     for _, z in ipairs(validZones) do
         local n = NormalizeZone(z)
         if n ~= "" then
@@ -526,13 +579,21 @@ function CrossZoneModule:MatchesCurrentZone(questID, questLogIndex, validZones)
     -- Phase 1: Check Objective Texts (The actual task instructions)
     -- If the objective text specifies where to go, that is the authoritative destination.
     if objTexts and #objTexts > 0 then
+        local anyObjHadExplicitZone = false
         for _, objStr in ipairs(objTexts) do
             if CheckText(objStr) then
                 return true
             end
+            local parsed = ParseZonesFromText(objStr)
+            if parsed and #parsed > 0 then
+                anyObjHadExplicitZone = true
+            end
         end
-        -- If objective texts exist and specify a destination, do not fall through to lore backstory
-        return false
+        -- If an objective explicitly specified a destination zone that isn't current, do not fall through to lore backstory.
+        -- But if none of the objective lines mentioned any zone or settlement hub at all, fall through to description!
+        if anyObjHadExplicitZone then
+            return false
+        end
     end
 
     -- Phase 2: Fallback to Quest Description only if objective texts were empty
@@ -545,7 +606,31 @@ function CrossZoneModule:MatchesCurrentZone(questID, questLogIndex, validZones)
     return false
 end
 
--- Export tables for external reference if needed
+-- Helper: Discover destination zone parsed from quest objective lines or description text
+function CrossZoneModule:GetQuestDestinationZone(questID, questLogIndex)
+    if not questID then return nil end
+    local objTexts, descText = GetQuestTexts(questID, questLogIndex)
+    if objTexts and #objTexts > 0 then
+        for _, objStr in ipairs(objTexts) do
+            local parsedZones = ParseZonesFromText(objStr)
+            if parsedZones and #parsedZones > 0 then
+                return parsedZones[1]
+            end
+        end
+    end
+    if descText and descText ~= "" then
+        local parsedZones = ParseZonesFromText(descText)
+        if parsedZones and #parsedZones > 0 then
+            return parsedZones[1]
+        end
+    end
+    return nil
+end
+
+-- Export tables and methods for external reference if needed
 CrossZoneModule.UiMapToZone = UIMAP_TO_ZONE
 CrossZoneModule.AllKnownZones = ALL_KNOWN_ZONES
 CrossZoneModule.HubToZone = HUB_TO_ZONE
+CrossZoneModule.ParseZonesFromText = ParseZonesFromText
+CrossZoneModule.GetQuestTexts = GetQuestTexts
+

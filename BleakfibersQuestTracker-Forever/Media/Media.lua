@@ -39,6 +39,45 @@ LSM:Register("statusbar", "BleakFlat", "Interface\\Buttons\\WHITE8x8")
 LSM:Register("statusbar", "Blizzard", "Interface\\TargetingFrame\\UI-StatusBar")
 LSM:Register("statusbar", "Blizzard Raid", "Interface\\RaidFrame\\Raid-Bar-Hp-Fill")
 
+-- Register Custom Audio Files & Pre-Configured Custom Slots
+local soundPath = mediaPath .. "Sounds\\"
+LSM:Register("sound", "Bleakfiber Beep", soundPath .. "beep.wav")
+LSM:Register("sound", "Bleakfiber Click", soundPath .. "click.wav")
+LSM:Register("sound", "Custom Sound 1 (custom1.wav)", soundPath .. "custom1.wav")
+LSM:Register("sound", "Custom Sound 2 (custom2.wav)", soundPath .. "custom2.wav")
+LSM:Register("sound", "Custom Sound 3 (custom3.wav)", soundPath .. "custom3.wav")
+LSM:Register("sound", "Custom Sound 4 (custom4.wav)", soundPath .. "custom4.wav")
+LSM:Register("sound", "Custom Sound 5 (custom5.wav)", soundPath .. "custom5.wav")
+
+-- Sound Fetch Helper (resolves friendly slot keys, LSM names, or direct paths)
+local customSoundSlots = {
+    ["beep"] = soundPath .. "beep.wav",
+    ["click"] = soundPath .. "click.wav",
+    ["custom1"] = soundPath .. "custom1.wav",
+    ["custom2"] = soundPath .. "custom2.wav",
+    ["custom3"] = soundPath .. "custom3.wav",
+    ["custom4"] = soundPath .. "custom4.wav",
+    ["custom5"] = soundPath .. "custom5.wav",
+}
+ns.customSoundSlots = customSoundSlots
+
+function ns.FetchSound(soundKey)
+    if not soundKey or soundKey == "" then return nil end
+    if customSoundSlots[soundKey] then
+        return customSoundSlots[soundKey]
+    end
+    if type(soundKey) == "string" and (soundKey:find("%.wav$") or soundKey:find("%.ogg$") or soundKey:find("%.mp3$") or soundKey:find("\\") or soundKey:find("/")) then
+        return soundKey
+    end
+    if LSM then
+        local snd = LSM:Fetch("sound", soundKey, true)
+        if snd and snd ~= "" then
+            return snd
+        end
+    end
+    return soundKey
+end
+
 -- Media Fetch Helper with safety fallbacks
 function ns.FetchFont(fontName)
     local fallback = ns.DEFAULT_FONT_PATH
@@ -49,6 +88,11 @@ function ns.FetchFont(fontName)
     -- Direct file path support
     if type(fontName) == "string" and (fontName:find("%.ttf$") or fontName:find("%.otf$") or fontName:find("\\") or fontName:find("/")) then
         return fontName
+    end
+
+    -- Blizzard standard game font alias
+    if fontName == "Friz Quadrata TT" or fontName == "Friz" then
+        return STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
     end
 
     if LSM then
@@ -64,4 +108,13 @@ function ns.FetchFont(fontName)
     end
 
     return fallback
+end
+
+-- Listen for late-registering media from third-party addons (SharedMedia packs, ElvUI, Details)
+if LSM and LSM.RegisterCallback then
+    LSM.RegisterCallback(ns, "LibSharedMedia_Registered", function(_, mediatype, key)
+        if mediatype == "font" and ns.Tracker and ns.Tracker.UpdateTypography then
+            ns.Tracker:UpdateTypography()
+        end
+    end)
 end

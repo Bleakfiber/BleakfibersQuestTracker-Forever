@@ -1,7 +1,7 @@
 # Bleakfiber's Quest Tracker (Forever)
 
 [![Interface](https://img.shields.io/badge/Interface-16001%20(WoW%20Forever)-blue.svg)](https://github.com/Bleakfiber/BleakfibersQuestTracker-Forever)
-[![Version](https://img.shields.io/badge/Version-1.0.4-green.svg)](https://github.com/Bleakfiber/BleakfibersQuestTracker-Forever)
+[![Version](https://img.shields.io/badge/Version-1.0.18-green.svg)](https://github.com/Bleakfiber/BleakfibersQuestTracker-Forever)
 [![License](https://img.shields.io/badge/License-Restricted%20Source--Available-red.svg)](LICENSE.md)
 
 **Bleakfiber's Quest Tracker** is a modular, high-performance, standalone quest tracking interface crafted specifically for **World of Warcraft: Forever**.
@@ -43,6 +43,10 @@ Designed as a modern alternative to the default Blizzard quest watch frame, it c
 ## Features Overview
 
 * **100% Independent & Standalone**: Operates natively using Blizzard's Classic APIs without requiring third-party database or UI frameworks.
+* **Native Dark Slate & Gold GUI**: Replaces raw AceGUI configuration windows with a bespoke 8-tab settings suite (`/bfq`) rendered in the Bleakfiber design theme.
+* **Responsive Layout Reflow**: Settings controls dynamically switch between a 2-column balanced layout and a 1-column stacked layout with word-wrapping labels to guarantee zero element overlaps.
+* **Auto-Hiding Scrollbars**: Integrated smart scrollbar detection automatically hides the scroll bar and disables mouse wheel scrolling whenever options fit within the visible viewport.
+* **BleakfibersAddonConfig Suite Mover**: Seamlessly locks/unlocks positioning with the global master mover system (`/bac mover`).
 * **Customizable Header Bar**: Complete with custom textures (Flat, Gradient, Blizzard, None), color pickers, counter displays, and quick-access buttons (`[Log]`, `[Zone]`, `[All]`, `[...]`, `[-]`/`[+]`).
 * **Interactive Quest Item Buttons**: Usable quest items (flares, totems, containment devices, seeds) appear directly alongside the quest block with full cooldown animations and stack counters. Includes native bag scanning fallback.
 * **Smart Zone & Section Grouping**: Automatically clusters quests under collapsible zone banners (e.g., `Durotar (3)`) with custom color gradients.
