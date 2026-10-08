@@ -86,3 +86,4 @@ if (Test-Path $zipsDir) {
 }
 
 Write-Host "Successfully packaged: $zipName" -ForegroundColor Green
+
