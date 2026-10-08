@@ -71,19 +71,29 @@ $noteBody
     }
 }
 
-# Zip Archive Generation
-$zipName = "$addonName $Version.zip"
-$zipPath = Join-Path $rootDir $zipName
-
-Write-Host "Creating archive $zipName..." -ForegroundColor Cyan
-Compress-Archive -Path $addonDir -DestinationPath $zipPath -Force
-
-# Mirror into zips/ if exists
+# Ensure \zips directory exists
 $zipsDir = Join-Path $rootDir "zips"
-if (Test-Path $zipsDir) {
-    Copy-Item -Path $zipPath -Destination $zipsDir -Force
-    Write-Host "Archived copy to zips/$zipName" -ForegroundColor Cyan
+if (-not (Test-Path $zipsDir)) {
+    New-Item -ItemType Directory -Path $zipsDir -Force | Out-Null
 }
 
-Write-Host "Successfully packaged: $zipName" -ForegroundColor Green
+# Zip Archive Generation directly in \zips
+$zipName = "$addonName $Version.zip"
+$zipPath = Join-Path $zipsDir $zipName
 
+Write-Host "Creating archive zips/$zipName..." -ForegroundColor Cyan
+Compress-Archive -Path $addonDir -DestinationPath $zipPath -Force
+
+# Clean up duplicate / legacy zip archives in root
+Get-ChildItem -Path $rootDir -Filter "*.zip" -File | ForEach-Object {
+    $targetInZips = Join-Path $zipsDir $_.Name
+    if (-not (Test-Path $targetInZips)) {
+        Move-Item -Path $_.FullName -Destination $targetInZips -Force
+        Write-Host "Moved legacy archive to zips/$($_.Name)" -ForegroundColor Cyan
+    } else {
+        Remove-Item -Path $_.FullName -Force
+        Write-Host "Removed duplicate root archive: $($_.Name)" -ForegroundColor Yellow
+    }
+}
+
+Write-Host "Successfully packaged: zips/$zipName" -ForegroundColor Green

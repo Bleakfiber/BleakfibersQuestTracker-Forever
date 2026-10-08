@@ -9,6 +9,8 @@ desktop.ini
 *.swp
 *.bak
 *.zip
+zip/
+zips/
 agents.md
 scratch/
 tools/
