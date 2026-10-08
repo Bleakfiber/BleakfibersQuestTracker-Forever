@@ -2,6 +2,34 @@
 
 All notable changes to **Bleakfiber's Quest Tracker - Forever** are documented below.
 
+## [1.0.19] - 2026-10-08: Complete Configuration Restoration & Audio Suite Polish
+
+### Configuration GUI Restoration & Completeness
+- **Module Management Toggles (General Tab)**: Restored master toggles for all standalone sub-modules (`Wayfinder Navigation Module`, `DataBars Suite Module`, `Quest Automation Module`, `Quality of Life (QoL) Module`) with instant live event/timer binding without requiring `/reload`.
+- **Utility & Setup Actions (General Tab)**: Restored `Show Bounds Overlay & Resize Handle` toggle, `Run Setup Walkthrough` (`/bfq onboard`), `Reset Tracker Position`, and `Reset Untracked Quests` action buttons.
+- **Zone Expansion Actions (Quests & Items Tab)**: Added quick action buttons to `Expand All Zones` and `Collapse All Zones` across the active quest list.
+- **Theme Presets & Palette Resets (Colors & Fonts Tab)**:
+  - Added one-click theme presets: `Modern Dark Glass (Default)`, `Classic WoW Plus`, and `Ultra Minimalist`.
+  - Added color restoration actions: `Reset Background Color`, `Reset Text to Class Color`, and `Reset Buttons to Class Color`.
+- **Full Merchant & Social Automation (Automation & QoL Tab)**:
+  - Restored `Auto-Share Quests with Party` toggle under quest automation.
+  - Restored `Use Guild Bank for Repairs` toggle with personal funds fallback.
+  - Restored `Hold Shift to Bypass Vendor Auto-Sell/Repair` modifier toggle.
+  - Restored party chat announcement controls: `Announce to Party Chat (Master Toggle)` and `Announce Objective Progress (N/X)`.
+- **Complete Audio Alerts & Wayfinder Utilities (Wayfinder & Audio Tab)**:
+  - Added cycle selectors for `Complete Sound` (Peon "Work complete!", Classic, Whisper Ping, Coins, Loot Clink, Fanfare, Raid Warning, Ready Check, PvP Horn, Custom Slot) and `Complete Channel` (Master, SFX, Ambience).
+  - Added `Preview Complete Sound` button testing playback at currently configured volume.
+  - Added cycle selectors for `Objective Sound` and `Objective Channel`.
+  - Added `Preview Objective Sound` button testing playback at currently configured volume.
+  - Restored Wayfinder navigation action buttons: `Preview / Move Arrow` HUD mover, `Reset Arrow Position`, `Point Closest (/cway)`, and `Clear All Custom Waypoints`.
+- **DataBars & Timer Bar Management (DataBars Tab)**:
+  - Restored `Reset Free XP Position` and `Reset XP Colors` action buttons.
+  - Restored `Reset Free Loc Position` button for the location and coordinates header bar.
+  - Added `QUEST TIMER BAR & DOCKING` section with `Preview / Move Timer Bar` and `Reset Timer Bar Position` buttons.
+- **Dynamic Layout & Reflow**: All 36 restored settings, toggles, cycle selectors, and action buttons dynamically adapt to canvas width with responsive 2-column or stacked 1-column layouts, strict text wrapping, and auto-hiding scrollbars with zero element overlap.
+
+---
+
 ## [1.0.18] - 2026-10-08: Native Slate & Gold Configuration GUI & Responsive Reflow
 
 ### Configuration GUI Redesign & Suite Unification

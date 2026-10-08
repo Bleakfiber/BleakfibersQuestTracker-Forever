@@ -4626,6 +4626,34 @@ local LOC_DOCK_MODES = {
     { key = "free",         label = "Free Floating" },
 }
 
+local SOUND_CHANNELS = {
+    { key = "Master",   label = "Master Channel" },
+    { key = "SFX",      label = "Sound Effects (SFX)" },
+    { key = "Ambience", label = "Ambience Channel" },
+}
+
+local COMPLETE_SOUNDS = {
+    { key = "peon",           label = "Peon: \"Work complete!\"" },
+    { key = "quest_complete", label = "Classic Quest Complete" },
+    { key = "whisper_ping",   label = "Whisper Ping" },
+    { key = "coins",          label = "Gold Coin Ding" },
+    { key = "loot_clink",     label = "Loot Coin Clink" },
+    { key = "level_up",       label = "Level Up Fanfare" },
+    { key = "raid_warning",   label = "Raid Warning Chime" },
+    { key = "ready_check",    label = "Ready Check Chime" },
+    { key = "pvp_horn",       label = "PvP Queue Horn" },
+    { key = "custom",         label = "Custom Sound Slot" },
+}
+
+local OBJECTIVE_SOUNDS = {
+    { key = "whisper_ping", label = "Whisper Ping" },
+    { key = "coins",        label = "Gold Coin Ding" },
+    { key = "loot_clink",   label = "Loot Coin Clink" },
+    { key = "map_ping",     label = "Mini-Map Ping" },
+    { key = "item_click",   label = "Subtle Click" },
+    { key = "custom",       label = "Custom Sound Slot" },
+}
+
 -- TAB 1: General Settings
 local function BuildGeneralTab(content, syncList)
     local db = ns.db or {}
@@ -4707,6 +4735,77 @@ local function BuildGeneralTab(content, syncList)
     )
     table.insert(syncList, cbCombatCollapse)
 
+    local h3, d3 = CreateSectionHeader(content, "MODULE MANAGEMENT", 12, 0)
+    local cbModWayfinder = CreateStyledCheckbox(content, "Wayfinder Navigation Module",
+        "3D floating HUD waypoint arrow, inline tracker mini arrows, and distance readouts.",
+        function() return ns.IsModuleEnabled("wayfinder") end,
+        function(v) ns.SetModuleEnabled("wayfinder", v) end
+    )
+    table.insert(syncList, cbModWayfinder)
+
+    local cbModDataBars = CreateStyledCheckbox(content, "DataBars Suite Module",
+        "Standalone Experience / Reputation progress bar, Location & precision coordinates header bar, and timed quest bar.",
+        function() return ns.IsModuleEnabled("databars") end,
+        function(v) ns.SetModuleEnabled("databars", v) end
+    )
+    table.insert(syncList, cbModDataBars)
+
+    local cbModQuestAuto = CreateStyledCheckbox(content, "Quest Automation Module",
+        "Automated quest accepting, auto-sharing with party members, and smart turn-in completion.",
+        function() return ns.IsModuleEnabled("questAutomation") end,
+        function(v) ns.SetModuleEnabled("questAutomation", v) end
+    )
+    table.insert(syncList, cbModQuestAuto)
+
+    local cbModQoL = CreateStyledCheckbox(content, "Quality of Life (QoL) Module",
+        "Instant Fast Auto Loot, automatic grey/junk selling at vendors, and merchant equipment repair.",
+        function() return ns.IsModuleEnabled("qol") end,
+        function(v) ns.SetModuleEnabled("qol", v) end
+    )
+    table.insert(syncList, cbModQoL)
+
+    local h4, d4 = CreateSectionHeader(content, "UTILITY & POSITION ACTIONS", 12, 0)
+    local cbOverlay = CreateStyledCheckbox(content, "Show Bounds Overlay & Resize Handle",
+        "Display the on-screen blue bounding box and [Drag to Resize] handle on the tracker.",
+        function()
+            return ns.Tracker and ns.Tracker.IsConfigOverlayShown and ns.Tracker:IsConfigOverlayShown()
+        end,
+        function(v)
+            if ns.Tracker then
+                if v then
+                    if ns.Tracker.ShowConfigOverlay then ns.Tracker:ShowConfigOverlay() end
+                else
+                    if ns.Tracker.HideConfigOverlay then ns.Tracker:HideConfigOverlay() end
+                end
+            end
+        end
+    )
+    table.insert(syncList, cbOverlay)
+
+    local btnOnboard = CreateStyledButton(content, "Run Setup Walkthrough", 190, 22, function()
+        if ns.Onboarding and ns.Onboarding.ShowWizard then
+            ns.Onboarding:ShowWizard()
+        end
+    end, "Open the interactive first-time setup walkthrough modal (/bfq onboard).")
+
+    local btnResetPos = CreateStyledButton(content, "Reset Tracker Position", 190, 22, function()
+        if ns.Tracker and ns.Tracker.ResetPosition then
+            ns.Tracker:ResetPosition()
+        end
+        if ns.Print then ns.Print("Tracker position reset to default.") end
+    end, "Reset the tracker to the default screen position (top-right).")
+
+    local btnResetUntracked = CreateStyledButton(content, "Reset Untracked Quests", 190, 22, function()
+        if db.filtering then
+            db.filtering.untrackedQuests = {}
+        end
+        if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
+        if ns.StandaloneTracker and ns.StandaloneTracker.RefreshQuests then
+            ns.StandaloneTracker:RefreshQuests()
+        end
+        if ns.Print then ns.Print("Untracked quests restored.") end
+    end, "Restores all quests that were hidden from the tracker using the right-click 'Untrack Quest' menu.")
+
     local function Layout(w)
         if not w or w < 100 then w = content:GetWidth() or 500 end
         local y = -10
@@ -4747,7 +4846,37 @@ local function BuildGeneralTab(content, syncList)
             cbCombatHide.Text:SetWidth(colWidth - 32)
             cbCombatCollapse:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
             cbCombatCollapse.Text:SetWidth(colWidth - 32)
+            y = y - 40
+
+            h3:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            cbModWayfinder:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbModWayfinder.Text:SetWidth(colWidth - 32)
+            cbModDataBars:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbModDataBars.Text:SetWidth(colWidth - 32)
             y = y - 34
+
+            cbModQuestAuto:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbModQuestAuto.Text:SetWidth(colWidth - 32)
+            cbModQoL:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbModQoL.Text:SetWidth(colWidth - 32)
+            y = y - 40
+
+            h4:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            cbOverlay:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbOverlay.Text:SetWidth(colWidth - 32)
+            btnOnboard:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            btnOnboard:SetWidth(math.min(190, colWidth - 20))
+            y = y - 36
+
+            btnResetPos:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnResetPos:SetWidth(math.min(190, colWidth - 20))
+            btnResetUntracked:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            btnResetUntracked:SetWidth(math.min(190, colWidth - 20))
+            y = y - 36
         else
             local colWidth = w - 36
             local col1X = 16
@@ -4782,7 +4911,39 @@ local function BuildGeneralTab(content, syncList)
             y = y - 32
             cbCombatCollapse:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             cbCombatCollapse.Text:SetWidth(colWidth - 32)
+            y = y - 38
+
+            h3:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            cbModWayfinder:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbModWayfinder.Text:SetWidth(colWidth - 32)
             y = y - 32
+            cbModDataBars:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbModDataBars.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbModQuestAuto:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbModQuestAuto.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbModQoL:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbModQoL.Text:SetWidth(colWidth - 32)
+            y = y - 38
+
+            h4:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            cbOverlay:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbOverlay.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            btnOnboard:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnOnboard:SetWidth(math.min(220, colWidth - 20))
+            y = y - 36
+            btnResetPos:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnResetPos:SetWidth(math.min(220, colWidth - 20))
+            y = y - 36
+            btnResetUntracked:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnResetUntracked:SetWidth(math.min(220, colWidth - 20))
+            y = y - 36
         end
 
         content:SetHeight(math.abs(y) + 20)
@@ -4875,6 +5036,26 @@ local function BuildQuestsTab(content, syncList)
     )
     table.insert(syncList, cbUsableGear)
 
+    local h3, d3 = CreateSectionHeader(content, "ZONE EXPANSION ACTIONS", 12, 0)
+    local btnExpandAll = CreateStyledButton(content, "Expand All Zones", 190, 22, function()
+        if db then
+            db.collapsedZones = {}
+            if ns.FireCallback then ns:FireCallback("QUEST_DATA_CHANGED") end
+        end
+    end, "Expand all collapsible zone headers inside the tracker.")
+
+    local btnCollapseAll = CreateStyledButton(content, "Collapse All Zones", 190, 22, function()
+        if ns.StandaloneTracker and ns.StandaloneTracker.GetTrackedQuests then
+            db.collapsedZones = db.collapsedZones or {}
+            local quests = ns.StandaloneTracker:GetTrackedQuests()
+            for _, q in ipairs(quests) do
+                local z = q.zone or "Other Quests"
+                db.collapsedZones[z] = true
+            end
+            if ns.FireCallback then ns:FireCallback("QUEST_DATA_CHANGED") end
+        end
+    end, "Collapse all zone headers down to compact single bars.")
+
     local function Layout(w)
         if not w or w < 100 then w = content:GetWidth() or 500 end
         local y = -10
@@ -4917,7 +5098,16 @@ local function BuildQuestsTab(content, syncList)
             cbXpPct.Text:SetWidth(colWidth - 32)
             cbUsableGear:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
             cbUsableGear.Text:SetWidth(colWidth - 32)
-            y = y - 34
+            y = y - 40
+
+            h3:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            btnExpandAll:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnExpandAll:SetWidth(math.min(190, colWidth - 20))
+            btnCollapseAll:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            btnCollapseAll:SetWidth(math.min(190, colWidth - 20))
+            y = y - 36
         else
             local colWidth = w - 36
             local col1X = 16
@@ -4955,7 +5145,17 @@ local function BuildQuestsTab(content, syncList)
             y = y - 32
             cbUsableGear:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             cbUsableGear.Text:SetWidth(colWidth - 32)
-            y = y - 32
+            y = y - 38
+
+            h3:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            btnExpandAll:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnExpandAll:SetWidth(math.min(220, colWidth - 20))
+            y = y - 36
+            btnCollapseAll:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnCollapseAll:SetWidth(math.min(220, colWidth - 20))
+            y = y - 36
         end
 
         content:SetHeight(math.abs(y) + 20)
@@ -5045,6 +5245,50 @@ local function BuildColorsTab(content, syncList)
     )
     table.insert(syncList, cbShadow)
 
+    local h3, d3 = CreateSectionHeader(content, "THEME PRESETS", 12, 0)
+    local btnPresetGlass = CreateStyledButton(content, "Modern Dark Glass", 190, 22, function()
+        if Config.ApplyModernGlassPreset then Config:ApplyModernGlassPreset() end
+        if ns.Print then ns.Print("Applied Modern Dark Glass preset.") end
+        for _, w in ipairs(syncList) do if w.Sync then w.Sync() end end
+    end, "Modern dark glassmorphism preset with sleek flat 1px border and crisp white text.")
+
+    local btnPresetClassic = CreateStyledButton(content, "Classic WoW Plus", 190, 22, function()
+        if Config.ApplyClassicPreset then Config:ApplyClassicPreset() end
+        if ns.Print then ns.Print("Applied Classic WoW Plus preset.") end
+        for _, w in ipairs(syncList) do if w.Sync then w.Sync() end end
+    end, "Classic World of Warcraft parchment tooltip border with gold headers and high contrast.")
+
+    local btnPresetMinimal = CreateStyledButton(content, "Ultra Minimalist", 190, 22, function()
+        if Config.ApplyMinimalPreset then Config:ApplyMinimalPreset() end
+        if ns.Print then ns.Print("Applied Ultra Minimalist preset.") end
+        for _, w in ipairs(syncList) do if w.Sync then w.Sync() end end
+    end, "Borderless flat backdrop with compact typography for maximum screen space.")
+
+    local h4, d4 = CreateSectionHeader(content, "RESET COLORS", 12, 0)
+    local btnResetBg = CreateStyledButton(content, "Reset Background Color", 190, 22, function()
+        if bgDb then
+            if bgDb.bgTexture == "parchment" or bgDb.bgTexture == "parchment_clean" then
+                bgDb.bgColor = { r = 0.96, g = 0.90, b = 0.78, a = 0.90 }
+            else
+                bgDb.bgColor = { r = 0.05, g = 0.05, b = 0.05, a = 0.65 }
+            end
+        end
+        if ns.Tracker and ns.Tracker.UpdateBackdrop then ns.Tracker:UpdateBackdrop() end
+        for _, w in ipairs(syncList) do if w.Sync then w.Sync() end end
+    end, "Reset tracker background color and opacity back to defaults.")
+
+    local btnResetText = CreateStyledButton(content, "Reset Text to Class Color", 190, 22, function()
+        if db.headers then db.headers.textColor = nil end
+        if ns.Tracker and ns.Tracker.UpdateSettings then ns.Tracker:UpdateSettings() end
+        for _, w in ipairs(syncList) do if w.Sync then w.Sync() end end
+    end, "Reset header title text color back to your class color default.")
+
+    local btnResetBtnColor = CreateStyledButton(content, "Reset Buttons to Class Color", 190, 22, function()
+        if db.headers then db.headers.buttonColor = nil end
+        if ns.Tracker and ns.Tracker.UpdateSettings then ns.Tracker:UpdateSettings() end
+        for _, w in ipairs(syncList) do if w.Sync then w.Sync() end end
+    end, "Reset header button tint back to your class color default.")
+
     local function Layout(w)
         if not w or w < 100 then w = content:GetWidth() or 500 end
         local y = -10
@@ -5082,6 +5326,32 @@ local function BuildColorsTab(content, syncList)
             cbShadow:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
             cbShadow.Text:SetWidth(colWidth - 32)
             y = y - 48
+
+            h3:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            btnPresetGlass:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnPresetGlass:SetWidth(math.min(190, colWidth - 20))
+            btnPresetClassic:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            btnPresetClassic:SetWidth(math.min(190, colWidth - 20))
+            y = y - 36
+
+            btnPresetMinimal:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnPresetMinimal:SetWidth(math.min(190, colWidth - 20))
+            y = y - 40
+
+            h4:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            btnResetBg:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnResetBg:SetWidth(math.min(190, colWidth - 20))
+            btnResetText:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            btnResetText:SetWidth(math.min(190, colWidth - 20))
+            y = y - 36
+
+            btnResetBtnColor:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnResetBtnColor:SetWidth(math.min(190, colWidth - 20))
+            y = y - 36
         else
             local colWidth = w - 36
             local col1X = 16
@@ -5113,7 +5383,33 @@ local function BuildColorsTab(content, syncList)
             y = y - 46
             cbShadow:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             cbShadow.Text:SetWidth(colWidth - 32)
-            y = y - 32
+            y = y - 38
+
+            h3:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            btnPresetGlass:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnPresetGlass:SetWidth(math.min(220, colWidth - 20))
+            y = y - 36
+            btnPresetClassic:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnPresetClassic:SetWidth(math.min(220, colWidth - 20))
+            y = y - 36
+            btnPresetMinimal:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnPresetMinimal:SetWidth(math.min(220, colWidth - 20))
+            y = y - 38
+
+            h4:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            btnResetBg:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnResetBg:SetWidth(math.min(220, colWidth - 20))
+            y = y - 36
+            btnResetText:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnResetText:SetWidth(math.min(220, colWidth - 20))
+            y = y - 36
+            btnResetBtnColor:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnResetBtnColor:SetWidth(math.min(220, colWidth - 20))
+            y = y - 36
         end
 
         content:SetHeight(math.abs(y) + 20)
@@ -5335,6 +5631,17 @@ local function BuildAutomationTab(content, syncList)
     )
     table.insert(syncList, cbShiftBypass)
 
+    local cbAutoShare = CreateStyledCheckbox(content, "Auto-Share Quests with Party",
+        "Automatically shares newly accepted quests with your party or raid members.",
+        function() return db.questAutomation and db.questAutomation.autoShare == true end,
+        function(v)
+            db.questAutomation = db.questAutomation or {}
+            db.questAutomation.autoShare = v
+            if db.social then db.social.autoShare = v end
+        end
+    )
+    table.insert(syncList, cbAutoShare)
+
     local h2, d2 = CreateSectionHeader(content, "MERCHANT & SOCIAL QOL", 12, 0)
     local cbSellJunk = CreateStyledCheckbox(content, "Auto-Sell Grey Junk Items at Vendors",
         "Automatically sells all low-quality grey items when opening vendor merchant frames.",
@@ -5350,6 +5657,27 @@ local function BuildAutomationTab(content, syncList)
     )
     table.insert(syncList, cbAutoRepair)
 
+    local cbGuildRepair = CreateStyledCheckbox(content, "Use Guild Bank for Repairs",
+        "Attempt to use Guild Bank repair allowances if available, falling back to personal funds if unavailable.",
+        function() return qolDb.useGuildRepair == true end,
+        function(v) qolDb.useGuildRepair = v end
+    )
+    table.insert(syncList, cbGuildRepair)
+
+    local cbMerchantShift = CreateStyledCheckbox(content, "Hold Shift to Bypass Vendor Auto-Sell/Repair",
+        "Hold Shift while opening a merchant window to temporarily pause auto-selling and auto-repairing.",
+        function() return qolDb.shiftBypass ~= false end,
+        function(v) qolDb.shiftBypass = v end
+    )
+    table.insert(syncList, cbMerchantShift)
+
+    local cbAnnouncePartyMaster = CreateStyledCheckbox(content, "Announce to Party Chat (Master Toggle)",
+        "Master toggle to send quest milestone messages to party chat when grouped.",
+        function() return socialDb.announceToParty == true end,
+        function(v) socialDb.announceToParty = v end
+    )
+    table.insert(syncList, cbAnnouncePartyMaster)
+
     local cbAnnounceQuest = CreateStyledCheckbox(content, "Announce Full Quest Complete to Party",
         "Sends a friendly announcement to party chat when you complete all objectives for a quest.",
         function() return socialDb.announceQuestComplete ~= false end,
@@ -5357,12 +5685,19 @@ local function BuildAutomationTab(content, syncList)
     )
     table.insert(syncList, cbAnnounceQuest)
 
-    local cbAnnounceObj = CreateStyledCheckbox(content, "Announce Objective Progress to Party",
+    local cbAnnounceObj = CreateStyledCheckbox(content, "Announce Objective Complete to Party",
         "Announces individual objective completions (e.g. 8/8 Kobold Ears) to party chat.",
         function() return socialDb.announceObjectiveComplete ~= false end,
         function(v) socialDb.announceObjectiveComplete = v end
     )
     table.insert(syncList, cbAnnounceObj)
+
+    local cbAnnounceObjProg = CreateStyledCheckbox(content, "Announce Objective Progress (N/X)",
+        "Send incremental objective progress updates to party chat (e.g. Defias Traitors 5/15).",
+        function() return socialDb.announceObjectiveProgress == true end,
+        function(v) socialDb.announceObjectiveProgress = v end
+    )
+    table.insert(syncList, cbAnnounceObjProg)
 
     local function Layout(w)
         if not w or w < 100 then w = content:GetWidth() or 500 end
@@ -5387,7 +5722,9 @@ local function BuildAutomationTab(content, syncList)
             cbAutoTurnIn.Text:SetWidth(colWidth - 32)
             y = y - 34
 
-            cbShiftBypass:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbAutoShare:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbAutoShare.Text:SetWidth(colWidth - 32)
+            cbShiftBypass:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
             cbShiftBypass.Text:SetWidth(colWidth - 32)
             y = y - 40
 
@@ -5400,10 +5737,22 @@ local function BuildAutomationTab(content, syncList)
             cbAutoRepair.Text:SetWidth(colWidth - 32)
             y = y - 34
 
-            cbAnnounceQuest:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbGuildRepair:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbGuildRepair.Text:SetWidth(colWidth - 32)
+            cbMerchantShift:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbMerchantShift.Text:SetWidth(colWidth - 32)
+            y = y - 34
+
+            cbAnnouncePartyMaster:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbAnnouncePartyMaster.Text:SetWidth(colWidth - 32)
+            cbAnnounceQuest:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
             cbAnnounceQuest.Text:SetWidth(colWidth - 32)
-            cbAnnounceObj:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            y = y - 34
+
+            cbAnnounceObj:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             cbAnnounceObj.Text:SetWidth(colWidth - 32)
+            cbAnnounceObjProg:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbAnnounceObjProg.Text:SetWidth(colWidth - 32)
             y = y - 34
         else
             local colWidth = w - 36
@@ -5421,6 +5770,9 @@ local function BuildAutomationTab(content, syncList)
             cbAutoTurnIn:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             cbAutoTurnIn.Text:SetWidth(colWidth - 32)
             y = y - 32
+            cbAutoShare:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbAutoShare.Text:SetWidth(colWidth - 32)
+            y = y - 32
             cbShiftBypass:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             cbShiftBypass.Text:SetWidth(colWidth - 32)
             y = y - 38
@@ -5434,11 +5786,23 @@ local function BuildAutomationTab(content, syncList)
             cbAutoRepair:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             cbAutoRepair.Text:SetWidth(colWidth - 32)
             y = y - 32
+            cbGuildRepair:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbGuildRepair.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbMerchantShift:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbMerchantShift.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbAnnouncePartyMaster:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbAnnouncePartyMaster.Text:SetWidth(colWidth - 32)
+            y = y - 32
             cbAnnounceQuest:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             cbAnnounceQuest.Text:SetWidth(colWidth - 32)
             y = y - 32
             cbAnnounceObj:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             cbAnnounceObj.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbAnnounceObjProg:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbAnnounceObjProg.Text:SetWidth(colWidth - 32)
             y = y - 32
         end
 
@@ -5509,6 +5873,37 @@ local function BuildWayfinderTab(content, syncList)
     )
     table.insert(syncList, cbHideCombat)
 
+    local h1b, d1b = CreateSectionHeader(content, "WAYFINDER UTILITY ACTIONS", 12, 0)
+    local btnPreviewArrow = CreateStyledButton(content, "Preview / Move Arrow", 190, 22, function()
+        if ns.WayfinderModule and ns.WayfinderModule.TogglePreviewMode then
+            ns.WayfinderModule:TogglePreviewMode()
+        end
+    end, "Temporarily toggle the HUD arrow on screen so you can test appearance and drag it to a new location.")
+
+    local btnResetHUDPos = CreateStyledButton(content, "Reset Arrow Position", 190, 22, function()
+        if ns.WayfinderModule and ns.WayfinderModule.hudFrame then
+            ns.WayfinderModule.hudFrame:ClearAllPoints()
+            ns.WayfinderModule.hudFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 160)
+            if db.wayfinder then
+                db.wayfinder.hudPosition = { point = "CENTER", x = 0, y = 160 }
+            end
+            if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
+            if ns.Print then ns.Print("HUD arrow position reset.") end
+        end
+    end, "Reset the floating HUD arrow back to its default position above center screen.")
+
+    local btnPointClosest = CreateStyledButton(content, "Point Closest (/cway)", 190, 22, function()
+        if ns.WayfinderModule and ns.WayfinderModule.SetClosestWaypoint then
+            ns.WayfinderModule:SetClosestWaypoint()
+        end
+    end, "Direct the HUD arrow to the closest active custom waypoint.")
+
+    local btnClearWaypoints = CreateStyledButton(content, "Clear All Custom Waypoints", 190, 22, function()
+        if ns.WayfinderModule and ns.WayfinderModule.ClearAllCustomWaypoints then
+            ns.WayfinderModule:ClearAllCustomWaypoints()
+        end
+    end, "Remove all manually created custom waypoints.")
+
     local h2, d2 = CreateSectionHeader(content, "AUDIO & SOUND EFFECTS", 12, 0)
     local cbCompleteSound = CreateStyledCheckbox(content, "Play Sound on Quest Complete",
         "Plays an audio alert when you achieve 100% completion on a quest.",
@@ -5526,6 +5921,39 @@ local function BuildWayfinderTab(content, syncList)
     )
     table.insert(syncList, slCompleteVol)
 
+    local btnCompleteSound = CreateStyledCycleButton(content, "Complete Sound", 190, 22, COMPLETE_SOUNDS,
+        function() return soundDb.soundChoice or "peon" end,
+        function(v)
+            soundDb.soundChoice = v
+            soundDb.useCustomCompleteSound = (v == "custom")
+            if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
+            if ns.SocialModule and ns.SocialModule.PlayPreviewSound then
+                ns.SocialModule:PlayPreviewSound(v)
+            end
+        end,
+        "Select which sound effect to play when a quest is ready for turn-in."
+    )
+    table.insert(syncList, btnCompleteSound)
+
+    local btnCompleteChannel = CreateStyledCycleButton(content, "Complete Channel", 190, 22, SOUND_CHANNELS,
+        function() return soundDb.completeSoundChannel or "Master" end,
+        function(v)
+            soundDb.completeSoundChannel = v
+            if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
+        end,
+        "Select audio channel for completion sound playback."
+    )
+    table.insert(syncList, btnCompleteChannel)
+
+    local btnPreviewComplete = CreateStyledButton(content, "Preview Complete Sound", 190, 22, function()
+        if ns.SocialModule and ns.SocialModule.PlayPreviewSound then
+            local c = soundDb.soundChoice or "peon"
+            local ch = soundDb.completeSoundChannel or "Master"
+            local vol = soundDb.completeSoundVolume or 100
+            ns.SocialModule:PlayPreviewSound(c, ch, vol)
+        end
+    end, "Play the currently selected quest completion sound effect at configured volume.")
+
     local cbObjSound = CreateStyledCheckbox(content, "Play Sound on Objective Update",
         "Plays a subtle chime whenever objective progress advances (e.g. 3/4).",
         function() return soundDb.enableObjectiveSound ~= false end,
@@ -5541,6 +5969,39 @@ local function BuildWayfinderTab(content, syncList)
         "%d%%"
     )
     table.insert(syncList, slObjVol)
+
+    local btnObjSound = CreateStyledCycleButton(content, "Objective Sound", 190, 22, OBJECTIVE_SOUNDS,
+        function() return soundDb.objectiveSoundChoice or "whisper_ping" end,
+        function(v)
+            soundDb.objectiveSoundChoice = v
+            soundDb.useCustomObjectiveSound = (v == "custom")
+            if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
+            if ns.SocialModule and ns.SocialModule.PlayPreviewObjectiveSound then
+                ns.SocialModule:PlayPreviewObjectiveSound(v)
+            end
+        end,
+        "Select which subtle sound effect to play when an objective progresses."
+    )
+    table.insert(syncList, btnObjSound)
+
+    local btnObjChannel = CreateStyledCycleButton(content, "Objective Channel", 190, 22, SOUND_CHANNELS,
+        function() return soundDb.objectiveSoundChannel or "Master" end,
+        function(v)
+            soundDb.objectiveSoundChannel = v
+            if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
+        end,
+        "Select audio channel for objective progress sound playback."
+    )
+    table.insert(syncList, btnObjChannel)
+
+    local btnPreviewObj = CreateStyledButton(content, "Preview Objective Sound", 190, 22, function()
+        if ns.SocialModule and ns.SocialModule.PlayPreviewObjectiveSound then
+            local c = soundDb.objectiveSoundChoice or "whisper_ping"
+            local ch = soundDb.objectiveSoundChannel or "Master"
+            local vol = soundDb.objectiveSoundVolume or 100
+            ns.SocialModule:PlayPreviewObjectiveSound(c, ch, vol)
+        end
+    end, "Play the currently selected objective progress sound effect at configured volume.")
 
     local function Layout(w)
         if not w or w < 100 then w = content:GetWidth() or 500 end
@@ -5575,6 +6036,21 @@ local function BuildWayfinderTab(content, syncList)
             cbHideCombat.Text:SetWidth(colWidth - 32)
             y = y - 40
 
+            h1b:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            btnPreviewArrow:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnPreviewArrow:SetWidth(math.min(190, colWidth - 20))
+            btnResetHUDPos:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            btnResetHUDPos:SetWidth(math.min(190, colWidth - 20))
+            y = y - 36
+
+            btnPointClosest:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnPointClosest:SetWidth(math.min(190, colWidth - 20))
+            btnClearWaypoints:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            btnClearWaypoints:SetWidth(math.min(190, colWidth - 20))
+            y = y - 40
+
             h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
             y = y - 30
 
@@ -5584,11 +6060,31 @@ local function BuildWayfinderTab(content, syncList)
             slCompleteVol:SetWidth(math.min(190, colWidth - 20))
             y = y - 48
 
+            btnCompleteSound:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnCompleteSound:SetWidth(math.min(190, colWidth - 20))
+            btnCompleteChannel:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            btnCompleteChannel:SetWidth(math.min(190, colWidth - 20))
+            y = y - 36
+
+            btnPreviewComplete:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnPreviewComplete:SetWidth(math.min(190, colWidth - 20))
+            y = y - 40
+
             cbObjSound:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             cbObjSound.Text:SetWidth(colWidth - 32)
             slObjVol:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
             slObjVol:SetWidth(math.min(190, colWidth - 20))
             y = y - 48
+
+            btnObjSound:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnObjSound:SetWidth(math.min(190, colWidth - 20))
+            btnObjChannel:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            btnObjChannel:SetWidth(math.min(190, colWidth - 20))
+            y = y - 36
+
+            btnPreviewObj:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnPreviewObj:SetWidth(math.min(190, colWidth - 20))
+            y = y - 36
         else
             local colWidth = w - 36
             local col1X = 16
@@ -5615,6 +6111,22 @@ local function BuildWayfinderTab(content, syncList)
             cbHideCombat.Text:SetWidth(colWidth - 32)
             y = y - 38
 
+            h1b:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            btnPreviewArrow:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnPreviewArrow:SetWidth(math.min(220, colWidth - 20))
+            y = y - 36
+            btnResetHUDPos:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnResetHUDPos:SetWidth(math.min(220, colWidth - 20))
+            y = y - 36
+            btnPointClosest:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnPointClosest:SetWidth(math.min(220, colWidth - 20))
+            y = y - 36
+            btnClearWaypoints:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnClearWaypoints:SetWidth(math.min(220, colWidth - 20))
+            y = y - 38
+
             h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
             y = y - 30
 
@@ -5624,12 +6136,31 @@ local function BuildWayfinderTab(content, syncList)
             slCompleteVol:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             slCompleteVol:SetWidth(math.min(220, colWidth - 20))
             y = y - 46
+            btnCompleteSound:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnCompleteSound:SetWidth(math.min(220, colWidth - 20))
+            y = y - 36
+            btnCompleteChannel:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnCompleteChannel:SetWidth(math.min(220, colWidth - 20))
+            y = y - 36
+            btnPreviewComplete:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnPreviewComplete:SetWidth(math.min(220, colWidth - 20))
+            y = y - 38
+
             cbObjSound:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             cbObjSound.Text:SetWidth(colWidth - 32)
             y = y - 32
             slObjVol:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             slObjVol:SetWidth(math.min(220, colWidth - 20))
             y = y - 46
+            btnObjSound:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnObjSound:SetWidth(math.min(220, colWidth - 20))
+            y = y - 36
+            btnObjChannel:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnObjChannel:SetWidth(math.min(220, colWidth - 20))
+            y = y - 36
+            btnPreviewObj:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnPreviewObj:SetWidth(math.min(220, colWidth - 20))
+            y = y - 36
         end
 
         content:SetHeight(math.abs(y) + 20)
@@ -5718,6 +6249,45 @@ local function BuildDataBarsTab(content, syncList)
     )
     table.insert(syncList, cbTerritory)
 
+    local btnResetXPPos = CreateStyledButton(content, "Reset Free XP Position", 190, 22, function()
+        if dataDb then dataDb.xpFreePosition = nil end
+        if ns.DataBarsModule and ns.DataBarsModule.UpdateXPDocking then ns.DataBarsModule:UpdateXPDocking() end
+        if ns.Print then ns.Print("XP Bar position reset.") end
+    end, "Reset the free floating XP bar back to its default position.")
+
+    local btnResetXPColors = CreateStyledButton(content, "Reset XP Colors", 190, 22, function()
+        if dataDb then
+            dataDb.xpBgColor = { r = 0.00, g = 0.00, b = 0.00, a = 0.00 }
+            dataDb.xpColor = { r = 0.58, g = 0.00, b = 0.83, a = 1.00 }
+            dataDb.restedColor = { r = 0.00, g = 0.44, b = 0.88, a = 1.00 }
+            dataDb.questXPColor = { r = 0.25, g = 0.85, b = 0.45, a = 0.65 }
+            dataDb.allQuestXPColor = { r = 0.12, g = 0.45, b = 0.25, a = 0.80 }
+            dataDb.dingReadyColor = { r = 1.00, g = 0.82, b = 0.00, a = 1.00 }
+        end
+        if ns.DataBarsModule and ns.DataBarsModule.UpdateXPBar then ns.DataBarsModule:UpdateXPBar() end
+        if ns.Print then ns.Print("XP Bar colors reset to defaults.") end
+    end, "Reset all XP bar colors back to defaults.")
+
+    local btnResetLocPos = CreateStyledButton(content, "Reset Free Loc Position", 190, 22, function()
+        if dataDb then dataDb.locFreePosition = nil end
+        if ns.DataBarsModule and ns.DataBarsModule.UpdateLocDocking then ns.DataBarsModule:UpdateLocDocking() end
+        if ns.Print then ns.Print("Location Bar position reset.") end
+    end, "Reset the free floating Location Bar back to its default position.")
+
+    local h3, d3 = CreateSectionHeader(content, "QUEST TIMER BAR & DOCKING", 12, 0)
+    local btnPreviewTimer = CreateStyledButton(content, "Preview / Move Timer Bar", 190, 22, function()
+        if ns.DataBarsModule then
+            ns.DataBarsModule.timerPreviewMode = not ns.DataBarsModule.timerPreviewMode
+            if ns.DataBarsModule.RefreshBars then ns.DataBarsModule:RefreshBars() end
+        end
+    end, "Temporarily toggle preview mode for the Quest Timer Bar so you can adjust its position.")
+
+    local btnResetTimerPos = CreateStyledButton(content, "Reset Timer Bar Position", 190, 22, function()
+        if dataDb then dataDb.timerFreePosition = nil end
+        if ns.DataBarsModule and ns.DataBarsModule.UpdateTimerDocking then ns.DataBarsModule:UpdateTimerDocking() end
+        if ns.Print then ns.Print("Timer Bar position reset.") end
+    end, "Reset the free floating Timer Bar back to its default position.")
+
     local function Layout(w)
         if not w or w < 100 then w = content:GetWidth() or 500 end
         local y = -10
@@ -5747,6 +6317,12 @@ local function BuildDataBarsTab(content, syncList)
             cbRestedXP.Text:SetWidth(colWidth - 32)
             y = y - 34
 
+            btnResetXPPos:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnResetXPPos:SetWidth(math.min(190, colWidth - 20))
+            btnResetXPColors:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            btnResetXPColors:SetWidth(math.min(190, colWidth - 20))
+            y = y - 40
+
             h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
             y = y - 30
 
@@ -5761,6 +6337,19 @@ local function BuildDataBarsTab(content, syncList)
             cbTerritory:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
             cbTerritory.Text:SetWidth(colWidth - 32)
             y = y - 34
+
+            btnResetLocPos:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnResetLocPos:SetWidth(math.min(190, colWidth - 20))
+            y = y - 40
+
+            h3:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            btnPreviewTimer:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnPreviewTimer:SetWidth(math.min(190, colWidth - 20))
+            btnResetTimerPos:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            btnResetTimerPos:SetWidth(math.min(190, colWidth - 20))
+            y = y - 36
         else
             local colWidth = w - 36
             local col1X = 16
@@ -5782,6 +6371,12 @@ local function BuildDataBarsTab(content, syncList)
             y = y - 32
             cbRestedXP:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             cbRestedXP.Text:SetWidth(colWidth - 32)
+            y = y - 34
+            btnResetXPPos:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnResetXPPos:SetWidth(math.min(220, colWidth - 20))
+            y = y - 36
+            btnResetXPColors:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnResetXPColors:SetWidth(math.min(220, colWidth - 20))
             y = y - 38
 
             h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
@@ -5798,7 +6393,20 @@ local function BuildDataBarsTab(content, syncList)
             y = y - 32
             cbTerritory:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             cbTerritory.Text:SetWidth(colWidth - 32)
-            y = y - 32
+            y = y - 34
+            btnResetLocPos:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnResetLocPos:SetWidth(math.min(220, colWidth - 20))
+            y = y - 38
+
+            h3:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            btnPreviewTimer:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnPreviewTimer:SetWidth(math.min(220, colWidth - 20))
+            y = y - 36
+            btnResetTimerPos:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnResetTimerPos:SetWidth(math.min(220, colWidth - 20))
+            y = y - 36
         end
 
         content:SetHeight(math.abs(y) + 20)
