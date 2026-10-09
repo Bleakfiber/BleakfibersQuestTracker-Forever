@@ -4588,7 +4588,119 @@ local function CreateStyledButton(parent, text, width, height, onClick, tooltipT
     return btn
 end
 
-local function CreateStyledCycleButton(parent, labelPrefix, width, height, options, getFunc, setFunc, tooltipText)
+--[[-----------------------------------------------------------------------------
+    Custom Dark Slate & Gold Dropdown Menu System
+-------------------------------------------------------------------------------]]
+local sharedDropdownMenu = nil
+local sharedDropdownCatcher = nil
+
+local function GetOrCreateLocalDropdownMenu()
+    if sharedDropdownMenu then return sharedDropdownMenu end
+
+    sharedDropdownCatcher = CreateFrame("Button", "BFQ_DropdownCatcher", UIParent)
+    sharedDropdownCatcher:SetFrameStrata("FULLSCREEN_DIALOG")
+    sharedDropdownCatcher:SetFrameLevel(98)
+    sharedDropdownCatcher:SetAllPoints(UIParent)
+    sharedDropdownCatcher:EnableMouse(true)
+    sharedDropdownCatcher:Hide()
+    sharedDropdownCatcher:SetScript("OnClick", function()
+        if sharedDropdownMenu then sharedDropdownMenu:Hide() end
+    end)
+
+    local menu = CreateFrame("Frame", "BFQ_DropdownMenu", UIParent, BACKDROP_TEMPLATE)
+    menu:SetFrameStrata("FULLSCREEN_DIALOG")
+    menu:SetFrameLevel(99)
+    menu:SetClampedToScreen(true)
+    menu:SetBackdrop(INSET_BACKDROP)
+    menu:SetBackdropColor(0.08, 0.10, 0.13, 0.98)
+    menu:SetBackdropBorderColor(unpack(COLORS.goldBorder))
+    menu:EnableMouse(true)
+    menu:Hide()
+
+    menu:SetScript("OnShow", function()
+        sharedDropdownCatcher:Show()
+    end)
+    menu:SetScript("OnHide", function()
+        sharedDropdownCatcher:Hide()
+    end)
+
+    local scrollFrame = CreateFrame("ScrollFrame", "BFQ_DropdownScrollFrame", menu, "UIPanelScrollFrameTemplate")
+    scrollFrame:SetPoint("TOPLEFT", menu, "TOPLEFT", 4, -4)
+    scrollFrame:SetPoint("BOTTOMRIGHT", menu, "BOTTOMRIGHT", -22, 4)
+    menu.scrollFrame = scrollFrame
+
+    local scrollChild = CreateFrame("Frame", nil, scrollFrame)
+    scrollChild:SetSize(150, 100)
+    scrollFrame:SetScrollChild(scrollChild)
+    menu.scrollChild = scrollChild
+
+    scrollFrame:EnableMouseWheel(true)
+    scrollFrame:SetScript("OnMouseWheel", function(self, delta)
+        local cur = self:GetVerticalScroll()
+        local maxS = math.max(0, scrollChild:GetHeight() - self:GetHeight())
+        local newS = math.min(maxS, math.max(0, cur - (delta * 22)))
+        self:SetVerticalScroll(newS)
+    end)
+
+    menu.buttons = {}
+    sharedDropdownMenu = menu
+    return menu
+end
+
+local function NormalizeDropdownOptions(options)
+    local list = {}
+    if type(options) == "table" then
+        if #options > 0 then
+            for _, item in ipairs(options) do
+                if type(item) == "table" then
+                    local k = (item.key ~= nil) and item.key or ((item.value ~= nil) and item.value or item[1])
+                    local l = item.label or item.text or item[2] or tostring(k)
+                    table.insert(list, { key = k, label = l, raw = item })
+                else
+                    table.insert(list, { key = item, label = tostring(item), raw = item })
+                end
+            end
+        else
+            for k, v in pairs(options) do
+                table.insert(list, { key = k, label = tostring(v) })
+            end
+            table.sort(list, function(a, b) return a.label:lower() < b.label:lower() end)
+        end
+    end
+    return list
+end
+
+local function GetAvailableFonts()
+    local fonts = {}
+    local seen = {}
+    local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
+    if LSM and LSM.List then
+        local lsmList = LSM:List("font")
+        if lsmList then
+            for _, f in ipairs(lsmList) do
+                if not seen[f] then
+                    table.insert(fonts, { key = f, label = f })
+                    seen[f] = true
+                end
+            end
+        end
+    end
+    local standardFonts = {
+        "Nata Sans Bold", "Nata Sans Regular", "Nata Sans Medium",
+        "BleakUI Bold", "BleakUI Regular",
+        "Friz Quadrata TT", "Arial Narrow", "Skurri", "Morpheus"
+    }
+    for _, f in ipairs(standardFonts) do
+        if not seen[f] then
+            table.insert(fonts, { key = f, label = f })
+            seen[f] = true
+        end
+    end
+    table.sort(fonts, function(a, b) return a.label:lower() < b.label:lower() end)
+    return fonts
+end
+
+local function CreateStyledDropdown(parent, labelPrefix, width, height, options, getFunc, setFunc, tooltipText, isFont)
     local btn = CreateFrame("Button", nil, parent, BACKDROP_TEMPLATE)
     btn:SetSize(width or 180, height or 22)
     btn:SetBackdrop(INSET_BACKDROP)
@@ -4596,36 +4708,46 @@ local function CreateStyledCycleButton(parent, labelPrefix, width, height, optio
     btn:SetBackdropBorderColor(unpack(COLORS.goldMuted))
 
     local label = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    label:SetPoint("CENTER", btn, "CENTER", 0, 0)
+    label:SetPoint("LEFT", btn, "LEFT", 8, 0)
+    label:SetPoint("RIGHT", btn, "RIGHT", -20, 0)
+    label:SetJustifyH("LEFT")
+    label:SetWordWrap(false)
     btn.Label = label
 
-    local function GetCurrentIndex()
+    local arrow = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    arrow:SetPoint("RIGHT", btn, "RIGHT", -6, 0)
+    arrow:SetText("|cFFFFD100▼|r")
+
+    local function GetOptionsList()
+        if type(options) == "function" then
+            return NormalizeDropdownOptions(options())
+        end
+        return NormalizeDropdownOptions(options)
+    end
+
+    local function GetSelectedLabel(curVal)
+        local curOpts = GetOptionsList()
+        for _, opt in ipairs(curOpts) do
+            if opt.key == curVal then return opt.label end
+        end
+        return tostring(curVal or "N/A")
+    end
+
+    local function UpdateLabel()
         local cur = getFunc and getFunc()
-        for idx, opt in ipairs(options) do
-            if opt.key == cur then return idx end
+        local disp = GetSelectedLabel(cur)
+        label:SetText((labelPrefix and (labelPrefix .. ": ") or "") .. disp)
+        if isFont then
+            local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
+            local fPath = LSM and LSM:Fetch("font", cur, true)
+            if not fPath and ns.Media and ns.Media.FetchFont then
+                fPath = ns.Media:FetchFont(cur)
+            end
+            if fPath then
+                pcall(function() label:SetFont(fPath, 11, "") end)
+            end
         end
-        return 1
     end
-
-    local function UpdateText()
-        local idx = GetCurrentIndex()
-        local opt = options[idx] or options[1]
-        label:SetText((labelPrefix and (labelPrefix .. ": ") or "") .. (opt and opt.label or "N/A"))
-    end
-
-    btn:SetScript("OnClick", function()
-        local curIdx = GetCurrentIndex()
-        local nextIdx = (curIdx % #options) + 1
-        local nextOpt = options[nextIdx]
-        PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or 856)
-        if setFunc and nextOpt then
-            setFunc(nextOpt.key, nextOpt)
-        end
-        UpdateText()
-        if ns.Tracker and ns.Tracker.UpdateSettings then ns.Tracker:UpdateSettings() end
-        if ns.FireCallback then ns:FireCallback("SETTINGS_UPDATED") end
-        if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
-    end)
 
     btn:SetScript("OnEnter", function(self)
         self:SetBackdropColor(0.20, 0.22, 0.28, 0.95)
@@ -4646,14 +4768,162 @@ local function CreateStyledCycleButton(parent, labelPrefix, width, height, optio
         if tooltipText then GameTooltip:Hide() end
     end)
 
-    btn.Sync = UpdateText
-    UpdateText()
+    btn:SetScript("OnClick", function(self)
+        PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or 856)
+        local menu = GetOrCreateLocalDropdownMenu()
+        if menu:IsShown() and menu.currentButton == self then
+            menu:Hide()
+            return
+        end
+
+        local curOpts = GetOptionsList()
+        local curVal = getFunc and getFunc()
+        menu.currentButton = self
+
+        for _, b in ipairs(menu.buttons) do b:Hide() end
+
+        local btnHeight = 22
+        local maxVisible = 8
+        local visibleCount = math.min(#curOpts, maxVisible)
+        local menuWidth = math.max(width or 180, 160)
+        local totalContentHeight = #curOpts * btnHeight
+
+        local hasScroll = (#curOpts > maxVisible)
+        menu.scrollChild:SetSize(menuWidth - (hasScroll and 28 or 10), totalContentHeight)
+
+        local scrollBar = _G["BFQ_DropdownScrollFrameScrollBar"]
+        if scrollBar then
+            if hasScroll then
+                scrollBar:Show()
+                menu.scrollFrame:SetPoint("BOTTOMRIGHT", menu, "BOTTOMRIGHT", -22, 4)
+            else
+                scrollBar:Hide()
+                menu.scrollFrame:SetPoint("BOTTOMRIGHT", menu, "BOTTOMRIGHT", -4, 4)
+            end
+        end
+
+        local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
+        local selectedIndex = 1
+
+        for i, itm in ipairs(curOpts) do
+            local b = menu.buttons[i]
+            if not b then
+                b = CreateFrame("Button", nil, menu.scrollChild, BACKDROP_TEMPLATE)
+                b:SetHeight(btnHeight)
+                b:SetBackdrop(INSET_BACKDROP)
+
+                b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                b.text:SetPoint("LEFT", b, "LEFT", 8, 0)
+                b.text:SetPoint("RIGHT", b, "RIGHT", -8, 0)
+                b.text:SetJustifyH("LEFT")
+
+                b:SetScript("OnEnter", function(s)
+                    s:SetBackdropColor(0.20, 0.22, 0.28, 0.95)
+                    s:SetBackdropBorderColor(unpack(COLORS.goldBorder))
+                end)
+                b:SetScript("OnLeave", function(s)
+                    if s.isActive then
+                        s:SetBackdropColor(0.22, 0.19, 0.12, 0.95)
+                        s:SetBackdropBorderColor(unpack(COLORS.goldBorder))
+                    else
+                        s:SetBackdropColor(0.10, 0.12, 0.15, 0.50)
+                        s:SetBackdropBorderColor(unpack(COLORS.goldMuted))
+                    end
+                end)
+                menu.buttons[i] = b
+            end
+
+            b:ClearAllPoints()
+            b:SetPoint("TOPLEFT", menu.scrollChild, "TOPLEFT", 2, -((i - 1) * btnHeight))
+            b:SetPoint("RIGHT", menu.scrollChild, "RIGHT", -2, 0)
+
+            local isActive = (itm.key == curVal)
+            b.isActive = isActive
+            if isActive then
+                selectedIndex = i
+                b.text:SetText("|cFFFFD100✔ |r" .. itm.label)
+                b:SetBackdropColor(0.22, 0.19, 0.12, 0.95)
+                b:SetBackdropBorderColor(unpack(COLORS.goldBorder))
+            else
+                b.text:SetText("   " .. itm.label)
+                b:SetBackdropColor(0.10, 0.12, 0.15, 0.50)
+                b:SetBackdropBorderColor(unpack(COLORS.goldMuted))
+            end
+
+            if isFont then
+                local fPath = LSM and LSM:Fetch("font", itm.key, true)
+                if not fPath and ns.Media and ns.Media.FetchFont then
+                    fPath = ns.Media:FetchFont(itm.key)
+                end
+                if fPath then
+                    pcall(function() b.text:SetFont(fPath, 11, "") end)
+                end
+            else
+                b.text:SetFontObject("GameFontHighlightSmall")
+            end
+
+            local chosenKey = itm.key
+            local chosenRaw = itm.raw
+            b:SetScript("OnClick", function()
+                PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or 856)
+                if setFunc then
+                    setFunc(chosenKey, chosenRaw)
+                end
+                UpdateLabel()
+                menu:Hide()
+                if ns.Tracker and ns.Tracker.UpdateSettings then ns.Tracker:UpdateSettings() end
+                if ns.Tracker and ns.Tracker.UpdateTypography then ns.Tracker:UpdateTypography() end
+                if ns.FireCallback then ns:FireCallback("SETTINGS_UPDATED") end
+                if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
+            end)
+            b:Show()
+        end
+
+        local menuHeight = (visibleCount * btnHeight) + 8
+        menu:SetSize(menuWidth, menuHeight)
+
+        local screenHeight = UIParent:GetHeight() or 768
+        local btnBottom = self:GetBottom() or (screenHeight / 2)
+        menu:ClearAllPoints()
+        if btnBottom < (menuHeight + 20) then
+            menu:SetPoint("BOTTOMLEFT", self, "TOPLEFT", 0, 2)
+        else
+            menu:SetPoint("TOPLEFT", self, "BOTTOMLEFT", 0, -2)
+        end
+
+        menu:Show()
+        menu:Raise()
+
+        if hasScroll then
+            local scrollPos = math.max(0, math.min(totalContentHeight - (visibleCount * btnHeight), (selectedIndex - 1) * btnHeight))
+            menu.scrollFrame:SetVerticalScroll(scrollPos)
+        else
+            menu.scrollFrame:SetVerticalScroll(0)
+        end
+    end)
+
+    btn.Sync = UpdateLabel
+    UpdateLabel()
     return btn
+end
+
+local function CreateStyledFontDropdown(parent, labelPrefix, width, height, getFunc, setFunc, tooltipText)
+    return CreateStyledDropdown(parent, labelPrefix, width, height, GetAvailableFonts, getFunc, setFunc, tooltipText, true)
+end
+
+local function CreateStyledCycleButton(parent, labelPrefix, width, height, options, getFunc, setFunc, tooltipText)
+    return CreateStyledDropdown(parent, labelPrefix, width, height, options, getFunc, setFunc, tooltipText)
 end
 
 --[[-----------------------------------------------------------------------------
     Native Tab Builders for Quest Tracker
 -------------------------------------------------------------------------------]]
+local OUTLINE_OPTIONS = {
+    { key = "OUTLINE",      label = "Outline" },
+    { key = "THICKOUTLINE", label = "Thick Outline" },
+    { key = "",             label = "None" },
+}
+
 local BORDER_STYLES = {
     { key = "flat",    label = "Flat (Sleek 1px)" },
     { key = "tooltip", label = "Blizzard Tooltip" },
@@ -5047,7 +5317,7 @@ local function BuildQuestsTab(content, syncList)
     )
     table.insert(syncList, cbItemAuto)
 
-    local btnItemPos = CreateStyledCycleButton(content, "Item Docking", 190, 22, ITEM_POSITIONS,
+    local btnItemPos = CreateStyledDropdown(content, "Item Docking", 190, 22, ITEM_POSITIONS,
         function() return itemDb.position or "left" end,
         function(v) itemDb.position = v end,
         "Dock quest item buttons on the left margin or right margin of the tracker."
@@ -5288,7 +5558,7 @@ local function BuildColorsTab(content, syncList)
     local fontDb = db.fonts or {}
 
     local h1, d1 = CreateSectionHeader(content, "TRACKER BACKDROP & BORDER", 12, 0)
-    local btnBorder = CreateStyledCycleButton(content, "Border Style", 190, 22, BORDER_STYLES,
+    local btnBorder = CreateStyledDropdown(content, "Border Style", 190, 22, BORDER_STYLES,
         function() return bgDb.borderStyle or "flat" end,
         function(v) bgDb.borderStyle = v end,
         "Choose between Flat 1px border, Blizzard Tooltip rounded corners, Dialog, or borderless."
@@ -5327,6 +5597,48 @@ local function BuildColorsTab(content, syncList)
     table.insert(syncList, slBorderAlpha)
 
     local h2, d2 = CreateSectionHeader(content, "TYPOGRAPHY & TEXT SIZES", 12, 0)
+
+    local ddHeaderFont = CreateStyledFontDropdown(content, "Header Font", 190, 22,
+        function() return fontDb.headerFont or fontDb.font or "Nata Sans Bold" end,
+        function(v)
+            fontDb.headerFont = v
+            fontDb.font = v
+            if ns.Tracker and ns.Tracker.UpdateTypography then ns.Tracker:UpdateTypography() end
+        end,
+        "Select the typography face for tracker headers, zone titles, and quest titles."
+    )
+    table.insert(syncList, ddHeaderFont)
+
+    local ddHeaderOutline = CreateStyledDropdown(content, "Header Outline", 190, 22, OUTLINE_OPTIONS,
+        function() return fontDb.headerOutline or "OUTLINE" end,
+        function(v)
+            fontDb.headerOutline = v
+            if ns.Tracker and ns.Tracker.UpdateTypography then ns.Tracker:UpdateTypography() end
+        end,
+        "Select the font outline rendering style for headers and quest titles."
+    )
+    table.insert(syncList, ddHeaderOutline)
+
+    local ddObjFont = CreateStyledFontDropdown(content, "Objective Font", 190, 22,
+        function() return fontDb.objectiveFont or "Nata Sans Regular" end,
+        function(v)
+            fontDb.objectiveFont = v
+            if ns.Tracker and ns.Tracker.UpdateTypography then ns.Tracker:UpdateTypography() end
+        end,
+        "Select the typography face for quest objectives, progress text, and descriptions."
+    )
+    table.insert(syncList, ddObjFont)
+
+    local ddObjOutline = CreateStyledDropdown(content, "Objective Outline", 190, 22, OUTLINE_OPTIONS,
+        function() return fontDb.objectiveOutline or "" end,
+        function(v)
+            fontDb.objectiveOutline = v
+            if ns.Tracker and ns.Tracker.UpdateTypography then ns.Tracker:UpdateTypography() end
+        end,
+        "Select the font outline rendering style for objective lines."
+    )
+    table.insert(syncList, ddObjOutline)
+
     local slHeaderSize = CreateStyledSlider(content, "BFQ_SlHdrSize", "Header Font Size:",
         "Font size for quest title headers in the tracker (9 - 20 pt).",
         9, 20, 1,
@@ -5431,14 +5743,26 @@ local function BuildColorsTab(content, syncList)
             h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
             y = y - 30
 
+            ddHeaderFont:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            ddHeaderFont:SetWidth(math.min(190, colWidth - 20))
+            ddHeaderOutline:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            ddHeaderOutline:SetWidth(math.min(190, colWidth - 20))
+            y = y - 38
+
             slHeaderSize:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             slHeaderSize:SetWidth(math.min(190, colWidth - 20))
-            slObjSize:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
-            slObjSize:SetWidth(math.min(190, colWidth - 20))
+            slZoneSize:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            slZoneSize:SetWidth(math.min(190, colWidth - 20))
             y = y - 48
 
-            slZoneSize:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
-            slZoneSize:SetWidth(math.min(190, colWidth - 20))
+            ddObjFont:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            ddObjFont:SetWidth(math.min(190, colWidth - 20))
+            ddObjOutline:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            ddObjOutline:SetWidth(math.min(190, colWidth - 20))
+            y = y - 38
+
+            slObjSize:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            slObjSize:SetWidth(math.min(190, colWidth - 20))
             cbShadow:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
             cbShadow.Text:SetWidth(colWidth - 32)
             y = y - 48
@@ -5488,14 +5812,27 @@ local function BuildColorsTab(content, syncList)
             h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
             y = y - 30
 
+            ddHeaderFont:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            ddHeaderFont:SetWidth(math.min(220, colWidth - 20))
+            y = y - 38
+            ddHeaderOutline:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            ddHeaderOutline:SetWidth(math.min(220, colWidth - 20))
+            y = y - 38
             slHeaderSize:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             slHeaderSize:SetWidth(math.min(220, colWidth - 20))
             y = y - 46
-            slObjSize:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
-            slObjSize:SetWidth(math.min(220, colWidth - 20))
-            y = y - 46
             slZoneSize:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             slZoneSize:SetWidth(math.min(220, colWidth - 20))
+            y = y - 46
+
+            ddObjFont:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            ddObjFont:SetWidth(math.min(220, colWidth - 20))
+            y = y - 38
+            ddObjOutline:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            ddObjOutline:SetWidth(math.min(220, colWidth - 20))
+            y = y - 38
+            slObjSize:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            slObjSize:SetWidth(math.min(220, colWidth - 20))
             y = y - 46
             cbShadow:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             cbShadow.Text:SetWidth(colWidth - 32)
@@ -5592,7 +5929,7 @@ local function BuildHeadersTab(content, syncList)
     )
     table.insert(syncList, cbZoneCount)
 
-    local btnSort = CreateStyledCycleButton(content, "Sorting Mode", 190, 22, SORT_MODES,
+    local btnSort = CreateStyledDropdown(content, "Sorting Mode", 190, 22, SORT_MODES,
         function() return sortDb.mode or "level" end,
         function(v) sortDb.mode = v end,
         "Sort quests by quest level or group them by current zone."
@@ -5968,7 +6305,7 @@ local function BuildWayfinderTab(content, syncList)
     )
     table.insert(syncList, slInlineSize)
 
-    local btnUnits = CreateStyledCycleButton(content, "Distance Units", 190, 22, DISTANCE_UNITS,
+    local btnUnits = CreateStyledDropdown(content, "Distance Units", 190, 22, DISTANCE_UNITS,
         function() return wfDb.distanceUnit or "imperial" end,
         function(v) wfDb.distanceUnit = v end,
         "Choose Imperial yards/miles or Metric meters/kilometers for distance readouts."
@@ -6037,7 +6374,7 @@ local function BuildWayfinderTab(content, syncList)
     )
     table.insert(syncList, slCompleteVol)
 
-    local btnCompleteSound = CreateStyledCycleButton(content, "Complete Sound", 190, 22, COMPLETE_SOUNDS,
+    local btnCompleteSound = CreateStyledDropdown(content, "Complete Sound", 190, 22, COMPLETE_SOUNDS,
         function() return soundDb.soundChoice or "peon" end,
         function(v)
             soundDb.soundChoice = v
@@ -6051,7 +6388,7 @@ local function BuildWayfinderTab(content, syncList)
     )
     table.insert(syncList, btnCompleteSound)
 
-    local btnCompleteChannel = CreateStyledCycleButton(content, "Complete Channel", 190, 22, SOUND_CHANNELS,
+    local btnCompleteChannel = CreateStyledDropdown(content, "Complete Channel", 190, 22, SOUND_CHANNELS,
         function() return soundDb.completeSoundChannel or "Master" end,
         function(v)
             soundDb.completeSoundChannel = v
@@ -6086,7 +6423,7 @@ local function BuildWayfinderTab(content, syncList)
     )
     table.insert(syncList, slObjVol)
 
-    local btnObjSound = CreateStyledCycleButton(content, "Objective Sound", 190, 22, OBJECTIVE_SOUNDS,
+    local btnObjSound = CreateStyledDropdown(content, "Objective Sound", 190, 22, OBJECTIVE_SOUNDS,
         function() return soundDb.objectiveSoundChoice or "whisper_ping" end,
         function(v)
             soundDb.objectiveSoundChoice = v
@@ -6100,7 +6437,7 @@ local function BuildWayfinderTab(content, syncList)
     )
     table.insert(syncList, btnObjSound)
 
-    local btnObjChannel = CreateStyledCycleButton(content, "Objective Channel", 190, 22, SOUND_CHANNELS,
+    local btnObjChannel = CreateStyledDropdown(content, "Objective Channel", 190, 22, SOUND_CHANNELS,
         function() return soundDb.objectiveSoundChannel or "Master" end,
         function(v)
             soundDb.objectiveSoundChannel = v
@@ -6299,7 +6636,7 @@ local function BuildDataBarsTab(content, syncList)
     )
     table.insert(syncList, cbXPBar)
 
-    local btnXPDock = CreateStyledCycleButton(content, "XP Dock Mode", 190, 22, XP_DOCK_MODES,
+    local btnXPDock = CreateStyledDropdown(content, "XP Dock Mode", 190, 22, XP_DOCK_MODES,
         function() return dataDb.xpDockMode or "tracker_bottom" end,
         function(v) dataDb.xpDockMode = v end,
         "Dock experience bar directly underneath the tracker or unlock for free movement."
@@ -6344,7 +6681,7 @@ local function BuildDataBarsTab(content, syncList)
     )
     table.insert(syncList, cbLocBar)
 
-    local btnLocDock = CreateStyledCycleButton(content, "Loc Dock Mode", 190, 22, LOC_DOCK_MODES,
+    local btnLocDock = CreateStyledDropdown(content, "Loc Dock Mode", 190, 22, LOC_DOCK_MODES,
         function() return dataDb.locDockMode or "tracker_top" end,
         function(v) dataDb.locDockMode = v end,
         "Dock location bar above tracker, above minimap, or unlock for free movement."
