@@ -254,7 +254,7 @@ local function GetFormattedQuestTitle(questInfo)
     if showPartyBadge and ns.SocialModule and ns.SocialModule.GetPartyQuestDetails then
         local partyDetails = ns.SocialModule:GetPartyQuestDetails(questInfo.questID, questInfo.questLogIndex)
         if partyDetails and partyDetails.onQuestCount > 0 then
-            tag = tag .. string.format(" |cff00e5ff[👥%d]|r", partyDetails.onQuestCount)
+            tag = tag .. string.format(" |cff00e5ff[P%d]|r", partyDetails.onQuestCount)
         end
     end
     
@@ -272,7 +272,7 @@ local function GetFormattedQuestTitle(questInfo)
             elseif iconChoice == "blizz" then
                 activeMarker = "|TInterface\\GossipFrame\\AvailableQuestIcon:13:13:0:0|t "
             elseif iconChoice == "pointer" then
-                activeMarker = "|cff00e5ff► |r"
+                activeMarker = "|cff00e5ff> |r"
             elseif iconChoice == "none" then
                 activeMarker = ""
             else
@@ -1554,7 +1554,7 @@ local function ShowQuestTooltip(anchorFrame, qInfo)
             if partyDetails.onQuestCount > 0 then
                 for _, member in ipairs(partyDetails.onQuest) do
                     local nameStr = classColorParty and member.coloredName or member.name
-                    local statusTag = "|cff00ff00[✓ On Quest]|r"
+                    local statusTag = "|cff00ff00[+ On Quest]|r"
                     if not member.isConnected then
                         statusTag = statusTag .. " |cff888888(Offline)|r"
                     end
@@ -1567,7 +1567,7 @@ local function ShowQuestTooltip(anchorFrame, qInfo)
             if showMissing and partyDetails.missingCount > 0 then
                 for _, member in ipairs(partyDetails.missing) do
                     local nameStr = classColorParty and member.coloredName or member.name
-                    local statusTag = "|cffff6666[✗ Missing]|r"
+                    local statusTag = "|cffff6666[- Missing]|r"
                     if partyDetails.isPushable then
                         statusTag = statusTag .. " |cff00e5ff(Click to Share)|r"
                     end
@@ -1582,7 +1582,7 @@ local function ShowQuestTooltip(anchorFrame, qInfo)
 
     GameTooltip:AddLine(" ")
     if isActive then
-        GameTooltip:AddLine("|cff00e5ff● Active Quest|r |cffaaaaaa(Left-Click to " .. (isCollapsed and "Expand" or "Collapse") .. ")|r", 0.0, 0.9, 1.0)
+        GameTooltip:AddLine("|cff00e5ff* Active Quest|r |cffaaaaaa(Left-Click to " .. (isCollapsed and "Expand" or "Collapse") .. ")|r", 0.0, 0.9, 1.0)
         if ns.WayfinderModule and ns.WayfinderModule.IsCustomTarget and ns.WayfinderModule:IsCustomTarget() then
             local cur = ns.WayfinderModule.GetCurrentTarget and ns.WayfinderModule:GetCurrentTarget()
             local nav = ns.WayfinderModule.GetNavigationState and ns.WayfinderModule:GetNavigationState()

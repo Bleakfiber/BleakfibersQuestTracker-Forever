@@ -2,7 +2,7 @@
 ## Title: |cff00c0ffBleakfiber's Quest Tracker|r - |cffffd100Forever|r
 ## Notes: A lightweight, standalone, modular quest tracker designed for World of Warcraft: Forever.
 ## Author: Bleakfiber
-## Version: 1.1.1
+## Version: 1.1.2
 ## SavedVariables: BleakfiberTrackerDB, BleakfiberTrackerBackupDB
 ## SavedVariablesPerCharacter: BleakfiberTrackerCharDB
 ## IconTexture: Interface\Icons\INV_Misc_Book_07

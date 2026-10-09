@@ -1830,7 +1830,7 @@ local function GetOptionsTable()
                             },
                             showPartyBadge = {
                                 name = "Show Party Count Badge on Tracker",
-                                desc = "Appends a [👥 #] group count badge next to quest titles in the tracker when party members share the quest.",
+                                desc = "Appends a [P #] group count badge next to quest titles in the tracker when party members share the quest.",
                                 type = "toggle",
                                 width = "full",
                                 order = 3.7,
@@ -1996,7 +1996,7 @@ local function GetOptionsTable()
                             ["star"] = "Gold Star (Blizzard)",
                             ["arrow"] = "Gold Arrow",
                             ["blizz"] = "Blizzard Quest Icon",
-                            ["pointer"] = "Cyan Pointer (►)",
+                            ["pointer"] = "Cyan Pointer (>)",
                             ["none"] = "None",
                         },
                         get = function() return db.activeQuestIcon or "star" end,
@@ -4736,7 +4736,7 @@ local function CreateStyledDropdown(parent, labelPrefix, width, height, options,
 
     local arrow = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     arrow:SetPoint("RIGHT", btn, "RIGHT", -6, 0)
-    arrow:SetText("|cFFFFD100▼|r")
+    arrow:SetText("|cFFFFD100v|r")
 
     local function GetOptionsList()
         if type(options) == "function" then
@@ -4861,7 +4861,7 @@ local function CreateStyledDropdown(parent, labelPrefix, width, height, options,
             b.isActive = isActive
             if isActive then
                 selectedIndex = i
-                b.text:SetText("|cFFFFD100✔ |r" .. itm.label)
+                b.text:SetText("|cFFFFD100* |r" .. itm.label)
                 b:SetBackdropColor(0.22, 0.19, 0.12, 0.95)
                 b:SetBackdropBorderColor(unpack(COLORS.goldBorder))
             else
@@ -5433,8 +5433,8 @@ local function BuildQuestsTab(content, syncList)
     )
     table.insert(syncList, cbClassColorParty)
 
-    local cbPartyBadge = CreateStyledCheckbox(content, "Show Party Count Badge [👥 #]",
-        "Appends a [👥 #] group count badge next to quest titles in the tracker when party members share the quest.",
+    local cbPartyBadge = CreateStyledCheckbox(content, "Show Party Count Badge [P #]",
+        "Appends a [P #] group count badge next to quest titles in the tracker when party members share the quest.",
         function() return tipDb.showPartyBadge == true end,
         function(v)
             tipDb.showPartyBadge = v
@@ -7166,6 +7166,7 @@ function Config:GetOrCreateStandaloneFrame()
     local yOfs = db.yOfs or 0
 
     local f = CreateFrame("Frame", "BleakfibersStandaloneConfigFrame", UIParent, BACKDROP_TEMPLATE)
+    f:Hide()
     f:SetSize(width, height)
     f:SetPoint(point, UIParent, relPoint, xOfs, yOfs)
     f:SetFrameStrata("HIGH")
@@ -7330,11 +7331,15 @@ function Config:GetOrCreateStandaloneFrame()
 end
 
 function Config:ToggleConfigFrame()
-    local f = self:GetOrCreateStandaloneFrame()
-    if f:IsShown() then
-        f:Hide()
-    else
+    if not self.standaloneFrame then
+        local f = self:GetOrCreateStandaloneFrame()
         f:Show()
+        return
+    end
+    if self.standaloneFrame:IsShown() then
+        self.standaloneFrame:Hide()
+    else
+        self.standaloneFrame:Show()
     end
 end
 

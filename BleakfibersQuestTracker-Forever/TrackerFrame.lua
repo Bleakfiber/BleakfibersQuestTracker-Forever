@@ -346,10 +346,11 @@ function Tracker:Initialize()
     -- Menu Button [...]
     local menuBtn = CreateFrame("Button", nil, header)
     header.filterMenuBtn = menuBtn
-    menuBtn:SetHeight(16)
+    menuBtn:SetSize(26, 16)
     menuBtn:SetPoint("RIGHT", header, "RIGHT", -4, 0)
     menuBtn:SetNormalFontObject("GameFontNormalSmall")
     menuBtn:SetHighlightFontObject("GameFontHighlightSmall")
+    menuBtn:RegisterForClicks("AnyUp")
     menuBtn:SetText("[...]")
     menuBtn:SetScript("OnClick", function(self)
         if IsAltKeyDown() then
@@ -728,7 +729,11 @@ function Tracker:UpdateFilterButtons()
         if hCfg.showMenuBtn ~= false then
             menuBtn:Show()
             menuBtn:SetText(activeHex .. "[...]|r")
-            menuBtn:SetWidth(18)
+            if menuBtn:GetFontString() then
+                menuBtn:SetWidth(math.max(26, menuBtn:GetFontString():GetStringWidth() + 6))
+            else
+                menuBtn:SetWidth(26)
+            end
         else
             menuBtn:Hide()
         end

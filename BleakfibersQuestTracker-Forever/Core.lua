@@ -1077,7 +1077,7 @@ ns.defaultDB = {
         sorting = {
             mode = "level", -- "level", "zone"
             moveCompletedToBottom = false, -- Push "Ready for turn-in" quests to bottom of tracker
-            activeOnTop = true,            -- Pin active quest (★) to the very top of tracker
+            activeOnTop = true,            -- Pin active quest (*) to the very top of tracker
             showGroupTags = true,          -- Show [11+] elite/group and dungeon badges
         },
 
@@ -1104,7 +1104,7 @@ ns.defaultDB = {
             showPartyStatus = true,      -- Show party members on quest in tooltip
             showMissingParty = true,     -- Show party members missing the quest in tooltip
             classColorParty = true,      -- Color party member names with class color
-            showPartyBadge = false,      -- Append [👥 #] group count badge next to quest title
+            showPartyBadge = false,      -- Append [P #] group count badge next to quest title
         },
 
         -- Audio & Sounds

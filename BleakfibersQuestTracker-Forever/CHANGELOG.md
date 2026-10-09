@@ -1,5 +1,10 @@
 # Changelog - Bleakfiber's Quest Tracker (Forever)
 
+## [1.1.2] - 2026-10-09
+
+### Changed
+- Fixed dropdown arrow and symbol glyphs showing as broken rectangular boxes across fonts, and fixed standalone config frame requiring a double click to open.
+
 ## [1.1.1] - 2026-10-09
 
 ### Changed

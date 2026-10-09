@@ -871,7 +871,7 @@ function DataBarsModule:ShowXPTooltip(owner)
             if isDingReady then
                 local overflow = projectedXP - maxXP
                 GameTooltip:AddLine(" ")
-                GameTooltip:AddLine(string_format("|cff00ff00✓ Ding Ready!|r Turning in these quests will level you up to %d (+%s overflow XP)!",
+                GameTooltip:AddLine(string_format("|cff00ff00+ Ding Ready!|r Turning in these quests will level you up to %d (+%s overflow XP)!",
                     curLevel + 1, BreakUpLargeNumbers(overflow)), 0.2, 1.0, 0.2, true)
             end
         else
