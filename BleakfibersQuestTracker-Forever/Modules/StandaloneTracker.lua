@@ -27,9 +27,24 @@ local GetZoneText = GetZoneText
 local GetSubZoneText = GetSubZoneText
 local IsInInstance = IsInInstance
 local GetInstanceInfo = GetInstanceInfo
-local GetQuestLogSpecialItemInfo = GetQuestLogSpecialItemInfo
-local GetItemInfoInstant = GetItemInfoInstant
-local GetItemInfo = GetItemInfo
+local GetItemInfoInstant = function(item)
+    if not item then return nil end
+    if C_Item and C_Item.GetItemInfoInstant then
+        return C_Item.GetItemInfoInstant(item)
+    elseif _G.GetItemInfoInstant then
+        return _G.GetItemInfoInstant(item)
+    end
+    return nil
+end
+local GetItemInfo = function(item)
+    if not item then return nil end
+    if C_Item and C_Item.GetItemInfo then
+        return C_Item.GetItemInfo(item)
+    elseif _G.GetItemInfo then
+        return _G.GetItemInfo(item)
+    end
+    return nil
+end
 local IsQuestWatched = IsQuestWatched
 local GetQuestTagInfo = GetQuestTagInfo
 
