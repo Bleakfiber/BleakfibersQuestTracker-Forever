@@ -451,8 +451,8 @@ function StandaloneTracker:GetOrCreateItemButton(index)
     end
     btn.buttonIndex = index
     btn:SetSize(26, 26)
-    btn:SetFrameStrata("MEDIUM")
-    btn:SetFrameLevel(12)
+    btn:SetFrameStrata("HIGH")
+    btn:SetFrameLevel(60)
     btn:SetClampedToScreen(true)
     btn:SetMovable(true)
 
@@ -489,7 +489,16 @@ function StandaloneTracker:GetOrCreateItemButton(index)
     btn:SetHighlightTexture(hl)
 
     -- Secure Action Setup
-    btn:RegisterForClicks("AnyUp", "AnyDown")
+    btn:RegisterForClicks("AnyUp")
+
+    -- Fallback click invocation for native quest log item API
+    btn:HookScript("OnClick", function(s, mouseButton)
+        if mouseButton == "LeftButton" and not (InCombatLockdown and InCombatLockdown()) then
+            if s.questLogIndex and UseQuestLogSpecialItem then
+                UseQuestLogSpecialItem(s.questLogIndex)
+            end
+        end
+    end)
 
     -- Tooltips
     btn:SetScript("OnEnter", function(s)
@@ -711,9 +720,13 @@ function StandaloneTracker:UpdateItemButton(trackedQuests)
                 end
             end
         else
-            local itemAttr = q.itemLink or (q.itemID and ("item:" .. q.itemID)) or q.itemTexture
+            local itemName = (q.itemID and GetItemInfo and GetItemInfo(q.itemID))
+            local itemAttr = itemName or q.itemLink or (q.itemID and ("item:" .. q.itemID)) or q.itemTexture
             btn:SetAttribute("type", "item")
             btn:SetAttribute("item", itemAttr)
+            btn.questLogIndex = q.questLogIndex
+            btn:SetFrameStrata("HIGH")
+            btn:SetFrameLevel(60)
 
             if block and block.header then
                 btn:ClearAllPoints()

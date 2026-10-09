@@ -872,6 +872,26 @@ local function GetOptionsTable()
                             ns.Tracker:UpdateSettings()
                         end,
                     },
+                    growCorner = {
+                        name = "Grow Direction & Anchor Corner",
+                        desc = "Sets which corner the tracker anchors to and grows from as quests are added.\n\n• Auto: Anchors to nearest screen corner based on where you drag it.\n• Bottom-Right: Anchors bottom-right and grows UP & LEFT.\n• Bottom-Left: Anchors bottom-left and grows UP & RIGHT.\n• Top-Right: Anchors top-right and grows DOWN & LEFT.\n• Top-Left: Anchors top-left and grows DOWN & RIGHT.",
+                        type = "select",
+                        order = 4.815,
+                        values = {
+                            ["AUTO"] = "Auto (Snap to Nearest Screen Corner)",
+                            ["BOTTOMRIGHT"] = "Bottom-Right (Grows Up & Left)",
+                            ["BOTTOMLEFT"] = "Bottom-Left (Grows Up & Right)",
+                            ["TOPRIGHT"] = "Top-Right (Grows Down & Left)",
+                            ["TOPLEFT"] = "Top-Left (Grows Down & Right)",
+                        },
+                        get = function() return db.growCorner or "AUTO" end,
+                        set = function(_, val)
+                            db.growCorner = val
+                            if ns.Tracker and ns.Tracker.UpdateAnchorCorner then
+                                ns.Tracker:UpdateAnchorCorner(val)
+                            end
+                        end,
+                    },
                     maxHeight = {
                         name = "Grow Down Range / Max Height (px)",
                         desc = "The tracker dynamically auto-grows down to match active quest count. If content height exceeds this value, smooth scrolling begins.",
@@ -4946,6 +4966,14 @@ local ITEM_POSITIONS = {
     { key = "right", label = "Right Margin" },
 }
 
+local GROW_CORNERS = {
+    { key = "AUTO",        label = "Auto (Snap to Nearest Screen Corner)" },
+    { key = "BOTTOMRIGHT", label = "Bottom-Right (Grows Up & Left)" },
+    { key = "BOTTOMLEFT",  label = "Bottom-Left (Grows Up & Right)" },
+    { key = "TOPRIGHT",    label = "Top-Right (Grows Down & Left)" },
+    { key = "TOPLEFT",     label = "Top-Left (Grows Down & Right)" },
+}
+
 local XP_DOCK_MODES = {
     { key = "tracker_bottom", label = "Dock Tracker Bottom" },
     { key = "free",           label = "Free Floating" },
@@ -5036,6 +5064,18 @@ local function BuildGeneralTab(content, syncList)
         "%d px"
     )
     table.insert(syncList, slHeight)
+
+    local ddGrowCorner = CreateStyledDropdown(content, "Grow Anchor Corner", 190, 22, GROW_CORNERS,
+        function() return db.growCorner or "AUTO" end,
+        function(v)
+            db.growCorner = v
+            if ns.Tracker and ns.Tracker.UpdateAnchorCorner then
+                ns.Tracker:UpdateAnchorCorner(v)
+            end
+        end,
+        "Determines which screen corner the tracker anchors to and expands from. 'Auto' dynamically detects the nearest corner when dragged. Bottom-Right anchors to the bottom-right and grows upward and to the left as quests are added."
+    )
+    table.insert(syncList, ddGrowCorner)
 
     local h2, d2 = CreateSectionHeader(content, "VISIBILITY & COMBAT BEHAVIOR", 12, 0)
     local cbEmpty = CreateStyledCheckbox(content, "Auto-Hide When Empty",
@@ -5162,6 +5202,8 @@ local function BuildGeneralTab(content, syncList)
 
             slHeight:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             slHeight:SetWidth(math.min(190, colWidth - 20))
+            ddGrowCorner:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            ddGrowCorner:SetWidth(math.min(190, colWidth - 20))
             y = y - 48
 
             h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
@@ -5226,6 +5268,9 @@ local function BuildGeneralTab(content, syncList)
             y = y - 46
             slHeight:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             slHeight:SetWidth(math.min(220, colWidth - 20))
+            y = y - 46
+            ddGrowCorner:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            ddGrowCorner:SetWidth(math.min(220, colWidth - 20))
             y = y - 46
 
             h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)

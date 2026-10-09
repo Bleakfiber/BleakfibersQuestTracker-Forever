@@ -319,29 +319,37 @@ function ns.GetDifficultyColor(level, playerLevelOverride)
     if level <= 0 then
         return DIFF_COLOR_WHITE
     end
-    if not playerLevelOverride then
-        if GetQuestDifficultyColor then
-            local c = GetQuestDifficultyColor(level)
-            if c and c.r then return c end
-        end
-        if GetDifficultyColor then
-            local c = GetDifficultyColor(level)
-            if c and c.r then return c end
-        end
-    end
-    -- Reliable level-delta calculation (Red, Orange, Yellow, Green, Gray)
+
     local playerLevel = playerLevelOverride or (UnitLevel and UnitLevel("player")) or 1
     local diff = level - playerLevel
+
+    -- Calculate Blizzard green difficulty range dynamically (Classic / Wrath bracket formula)
+    local greenRange = 0
+    if GetQuestGreenRange then
+        greenRange = GetQuestGreenRange()
+    end
+    if not greenRange or greenRange <= 0 then
+        if playerLevel <= 5 then
+            greenRange = 2
+        elseif playerLevel <= 39 then
+            greenRange = math.floor(playerLevel / 10) + 3
+        elseif playerLevel <= 59 then
+            greenRange = math.floor(playerLevel / 5) + 1
+        else
+            greenRange = 9
+        end
+    end
+
     if diff >= 5 then
-        return DIFF_COLOR_RED -- Red (Very Difficult)
+        return (QuestDifficultyColors and QuestDifficultyColors["verydifficult"]) or DIFF_COLOR_RED
     elseif diff >= 3 then
-        return DIFF_COLOR_ORANGE -- Orange (Difficult)
+        return (QuestDifficultyColors and QuestDifficultyColors["difficult"]) or DIFF_COLOR_ORANGE
     elseif diff >= -2 then
-        return DIFF_COLOR_YELLOW -- Yellow (Normal)
-    elseif diff >= -7 then
-        return DIFF_COLOR_GREEN -- Green (Easy)
+        return DIFF_COLOR_YELLOW
+    elseif -diff <= greenRange then
+        return (QuestDifficultyColors and QuestDifficultyColors["easy"]) or DIFF_COLOR_GREEN
     else
-        return DIFF_COLOR_GRAY -- Gray (Trivial)
+        return (QuestDifficultyColors and QuestDifficultyColors["trivial"]) or DIFF_COLOR_GRAY
     end
 end
 
@@ -956,6 +964,7 @@ ns.defaultDB = {
     profile = {
         -- Positioning & Sizing
         framePosition = nil,
+        growCorner = "AUTO", -- "AUTO", "BOTTOMRIGHT", "BOTTOMLEFT", "TOPRIGHT", "TOPLEFT"
         width = 280,
         maxHeight = 600,
         scale = 1.0,

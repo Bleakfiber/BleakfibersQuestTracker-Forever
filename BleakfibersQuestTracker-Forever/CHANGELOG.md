@@ -1,5 +1,10 @@
 # Changelog - Bleakfiber's Quest Tracker (Forever)
 
+## [1.1.1] - 2026-10-09
+
+### Changed
+- Added corner grow anchor option (Auto, Bottom-Right, Bottom-Left, Top-Right, Top-Left), fixed green quest difficulty level coloring, and fixed quest item action button frame strata and click usability.
+
 All notable changes to **Bleakfiber's Quest Tracker - Forever** are documented below.
 
 ## [1.1.0] - 2026-10-08: Party Quest Status & Tooltip Integration

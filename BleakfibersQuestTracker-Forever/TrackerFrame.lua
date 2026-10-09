@@ -160,26 +160,49 @@ function Tracker:Initialize()
 
         local uipTop = UIParent:GetTop() or 768
         local uipRight = UIParent:GetRight() or 1024
+        local uipBottom = UIParent:GetBottom() or 0
+        local uipLeft = UIParent:GetLeft() or 0
+
         local top = trackerFrame:GetTop() or uipTop
+        local bottom = trackerFrame:GetBottom() or 0
         local left = trackerFrame:GetLeft() or 0
         local right = trackerFrame:GetRight() or uipRight
 
-        -- Always anchor from TOP so the frame strictly expands downward and never creeps into the minimap.
-        -- Choose TOPRIGHT if placed on the right half of the screen, or TOPLEFT if on the left half.
-        local anchorPoint, relX, relY
-        local isRightHalf = (left + (trackerFrame:GetWidth() / 2)) > (uipRight / 2)
+        local currentDB = (ns.dbObject and ns.dbObject.profile) or ns.db
+        local growCorner = (currentDB and currentDB.growCorner) or "AUTO"
 
-        if isRightHalf then
-            anchorPoint = "TOPRIGHT"
-            relX = math.floor((right - uipRight) + 0.5)
-            relY = math.floor((top - uipTop) + 0.5)
+        local isRightHalf = (left + (trackerFrame:GetWidth() / 2)) > (uipRight / 2)
+        local isTopHalf = (bottom + (trackerFrame:GetHeight() / 2)) > (uipTop / 2)
+
+        local anchorPoint
+        if growCorner == "AUTO" then
+            if isRightHalf and not isTopHalf then
+                anchorPoint = "BOTTOMRIGHT"
+            elseif not isRightHalf and not isTopHalf then
+                anchorPoint = "BOTTOMLEFT"
+            elseif isRightHalf and isTopHalf then
+                anchorPoint = "TOPRIGHT"
+            else
+                anchorPoint = "TOPLEFT"
+            end
         else
-            anchorPoint = "TOPLEFT"
-            relX = math.floor(left + 0.5)
-            relY = math.floor((top - uipTop) + 0.5)
+            anchorPoint = growCorner
         end
 
-        local currentDB = (ns.dbObject and ns.dbObject.profile) or ns.db
+        local relX, relY
+        if anchorPoint == "BOTTOMRIGHT" then
+            relX = math.floor((right - uipRight) + 0.5)
+            relY = math.floor((bottom - uipBottom) + 0.5)
+        elseif anchorPoint == "BOTTOMLEFT" then
+            relX = math.floor((left - uipLeft) + 0.5)
+            relY = math.floor((bottom - uipBottom) + 0.5)
+        elseif anchorPoint == "TOPLEFT" then
+            relX = math.floor((left - uipLeft) + 0.5)
+            relY = math.floor((top - uipTop) + 0.5)
+        else -- "TOPRIGHT" default
+            relX = math.floor((right - uipRight) + 0.5)
+            relY = math.floor((top - uipTop) + 0.5)
+        end
 
         if currentDB then
             currentDB.framePosition = {
@@ -204,7 +227,7 @@ function Tracker:Initialize()
                 ns.FlushDBToGlobals()
             end
 
-            ns.Debug(string.format("[Drag] Fixed to TOP: %s at (%d, %d)", anchorPoint, relX, relY))
+            ns.Debug(string.format("[Drag] Anchored %s: %s at (%d, %d)", growCorner, anchorPoint, relX, relY))
         else
             trackerFrame:SetUserPlaced(false)
         end
@@ -1077,34 +1100,14 @@ function Tracker:RestorePosition()
             db.framePosition = pos
         end
 
-        -- Ensure anchor is ALWAYS TOPLEFT or TOPRIGHT so the frame exclusively grows downward
-        if pos.point ~= "TOPLEFT" and pos.point ~= "TOPRIGHT" then
-            trackerFrame:SetPoint(pos.point, UIParent, pos.relativePoint or pos.point, pos.x, pos.y)
-
-            local uipTop = UIParent:GetTop() or 768
-            local uipRight = UIParent:GetRight() or 1024
-            local top = trackerFrame:GetTop() or (uipTop - 200)
-            local right = trackerFrame:GetRight() or (uipRight - 250)
-            local left = trackerFrame:GetLeft() or 0
-
-            local isRight = (pos.point:find("RIGHT") ~= nil) or ((left + (trackerFrame:GetWidth() / 2)) > (uipRight / 2))
-            local newPoint = isRight and "TOPRIGHT" or "TOPLEFT"
-            local newX = isRight and math.floor((right - uipRight) + 0.5) or math.floor(left + 0.5)
-            local newY = math.floor((top - uipTop) + 0.5)
-
-            pos.point = newPoint
-            pos.relativePoint = newPoint
-            pos.x = newX
-            pos.y = newY
-            if db then db.framePosition = pos end
-            if _G["BleakfiberTrackerCharDB"] then _G["BleakfiberTrackerCharDB"].framePosition = pos end
-
-            trackerFrame:ClearAllPoints()
-            trackerFrame:SetPoint(newPoint, UIParent, newPoint, newX, newY)
-            ns.Debug(string.format("[Restore Sanitized] Converted legacy anchor to %s at (%d, %d)", newPoint, newX, newY))
-        else
+        local validPoints = { TOPLEFT = true, TOPRIGHT = true, BOTTOMLEFT = true, BOTTOMRIGHT = true }
+        if validPoints[pos.point] then
             trackerFrame:SetPoint(pos.point, UIParent, pos.relativePoint or pos.point, pos.x, pos.y)
             ns.Debug(string.format("[Restore] Set %s relative to %s at (%d, %d)", pos.point, pos.relativePoint or pos.point, pos.x, pos.y))
+        else
+            local defPoint, defX, defY = self:GetDefaultPosition()
+            trackerFrame:SetPoint(defPoint, UIParent, defPoint, defX, defY)
+            ns.Debug(string.format("[Restore Fallback] Set %s at (%d, %d)", defPoint, defX, defY))
         end
     else
         local defPoint, defX, defY = self:GetDefaultPosition()
@@ -1112,6 +1115,76 @@ function Tracker:RestorePosition()
         ns.Debug(string.format("[Restore Default] Set %s at (%d, %d) [35px below minimap, farthest right]", defPoint, defX, defY))
     end
     trackerFrame:SetUserPlaced(false)
+end
+
+function Tracker:UpdateAnchorCorner(newCorner)
+    if not trackerFrame then return end
+    local db = (ns.dbObject and ns.dbObject.profile) or ns.db
+    if not db then return end
+
+    db.growCorner = newCorner or "AUTO"
+
+    local uipTop = UIParent:GetTop() or 768
+    local uipRight = UIParent:GetRight() or 1024
+    local uipBottom = UIParent:GetBottom() or 0
+    local uipLeft = UIParent:GetLeft() or 0
+
+    local top = trackerFrame:GetTop() or uipTop
+    local bottom = trackerFrame:GetBottom() or 0
+    local left = trackerFrame:GetLeft() or 0
+    local right = trackerFrame:GetRight() or uipRight
+
+    local isRightHalf = (left + (trackerFrame:GetWidth() / 2)) > (uipRight / 2)
+    local isTopHalf = (bottom + (trackerFrame:GetHeight() / 2)) > (uipTop / 2)
+
+    local anchorPoint
+    if db.growCorner == "AUTO" then
+        if isRightHalf and not isTopHalf then
+            anchorPoint = "BOTTOMRIGHT"
+        elseif not isRightHalf and not isTopHalf then
+            anchorPoint = "BOTTOMLEFT"
+        elseif isRightHalf and isTopHalf then
+            anchorPoint = "TOPRIGHT"
+        else
+            anchorPoint = "TOPLEFT"
+        end
+    else
+        anchorPoint = db.growCorner
+    end
+
+    local relX, relY
+    if anchorPoint == "BOTTOMRIGHT" then
+        relX = math.floor((right - uipRight) + 0.5)
+        relY = math.floor((bottom - uipBottom) + 0.5)
+    elseif anchorPoint == "BOTTOMLEFT" then
+        relX = math.floor((left - uipLeft) + 0.5)
+        relY = math.floor((bottom - uipBottom) + 0.5)
+    elseif anchorPoint == "TOPLEFT" then
+        relX = math.floor((left - uipLeft) + 0.5)
+        relY = math.floor((top - uipTop) + 0.5)
+    else -- "TOPRIGHT"
+        relX = math.floor((right - uipRight) + 0.5)
+        relY = math.floor((top - uipTop) + 0.5)
+    end
+
+    db.framePosition = {
+        point = anchorPoint,
+        relativePoint = anchorPoint,
+        x = relX,
+        y = relY,
+    }
+
+    if _G["BleakfiberTrackerCharDB"] then
+        _G["BleakfiberTrackerCharDB"].framePosition = db.framePosition
+    end
+
+    trackerFrame:ClearAllPoints()
+    trackerFrame:SetPoint(anchorPoint, UIParent, anchorPoint, relX, relY)
+    trackerFrame:SetUserPlaced(false)
+
+    if ns.FlushDBToGlobals then
+        ns.FlushDBToGlobals()
+    end
 end
 
 function Tracker:ResetPosition()
