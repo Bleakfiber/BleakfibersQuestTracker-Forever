@@ -444,7 +444,7 @@ function Config:OpenFilterMenu(anchor)
             if item.line then item.line:Hide() end
             SafeSetFont(item.check, fontPath, fontSize, "")
             SafeSetFont(item.text, fontPath, fontSize, "")
-            local mark = row.checked and "|cff00c0ff(*)|r" or "|cff666666( )|r"
+            local mark = row.checked and "|TInterface\\Common\\CommonIcons:13:13:0:0:2048:1024:271:510:26:235|t" or "|cff666666( )|r"
             local color = row.checked and "|cffffffff" or "|cffcccccc"
             item.check:ClearAllPoints()
             item.check:SetPoint("LEFT", item, "LEFT", 4, 0)
@@ -465,7 +465,7 @@ function Config:OpenFilterMenu(anchor)
             if item.line then item.line:Hide() end
             SafeSetFont(item.check, fontPath, fontSize, "")
             SafeSetFont(item.text, fontPath, fontSize, "")
-            local mark = row.checked and "|cff00ff00[x]|r" or "|cff666666[ ]|r"
+            local mark = row.checked and "|TInterface\\Common\\CommonIcons:13:13:0:0:2048:1024:13:253:542:752|t" or "|cff666666[ ]|r"
             local color = row.checked and "|cffffffff" or "|cffcccccc"
             item.check:ClearAllPoints()
             item.check:SetPoint("LEFT", item, "LEFT", 4, 0)
