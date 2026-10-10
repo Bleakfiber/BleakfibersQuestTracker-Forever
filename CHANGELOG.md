@@ -2,6 +2,16 @@
 
 All notable changes to **Bleakfiber's Quest Tracker - Forever** are documented below.
 
+## [1.1.7] - 2026-10-10: Party Quest Status & Quest Item Layering / Macro Execution
+
+### Fixed
+- **Party Quest Status & Evaluation**: Corrected argument order in modern API `C_QuestLog.IsUnitOnQuest(unit, questID)` and optimized group iteration across raid and 2-person party units. Party member status (such as spouse or teammates) now accurately identifies active quests in tooltips and badges instead of showing false "Missing" status.
+- **Quest Item Button Execution & Layering**:
+  - Resolved mouse capture layering when quest items are placed inside the tracker (`inside_right`) by setting elevated frame levels (250+) above the quest header block.
+  - Registered quest item buttons for both `AnyDown` and `AnyUp` clicks, supporting modern key-down click handling without drag intercept conflicts.
+  - Added live bag and slot resolution fallback to execute `/use <bag> <slot>` and `/use <item>` secure macros directly, preventing silent failures from uncached item links.
+  - Linked keybinding execution through a clean global `Bleakfiber_UseQuestItem` wrapper, eliminating XML parser syntax warnings.
+
 ## [1.1.4] - 2026-10-10: Blizzard Texture Art Asset Polish
 
 ### Changed

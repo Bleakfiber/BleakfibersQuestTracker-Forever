@@ -471,9 +471,10 @@ function StandaloneTracker:GetOrCreateItemButton(index)
     btn:SetSize(26, 26)
     local strata = (ns.db and ns.db.itemButtonStrata) or "MEDIUM"
     btn:SetFrameStrata(strata)
-    btn:SetFrameLevel(25)
+    btn:SetFrameLevel(250)
     btn:SetClampedToScreen(true)
     btn:SetMovable(true)
+    btn:EnableMouse(true)
 
     -- Clean Modern Backdrop & Border
     if btn.SetBackdrop then
@@ -496,6 +497,7 @@ function StandaloneTracker:GetOrCreateItemButton(index)
     -- Cooldown Spiral
     btn.cooldown = CreateFrame("Cooldown", frameName .. "Cooldown", btn, "CooldownFrameTemplate")
     btn.cooldown:SetAllPoints(btn.icon)
+    btn.cooldown:EnableMouse(false)
 
     -- Stack / Item Count
     btn.count = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmallOutline")
@@ -508,7 +510,13 @@ function StandaloneTracker:GetOrCreateItemButton(index)
     btn:SetHighlightTexture(hl)
 
     -- Secure Action Setup
-    btn:RegisterForClicks("AnyUp")
+    btn:RegisterForClicks("AnyDown", "AnyUp")
+    btn:SetScript("PostClick", function(s, mouseButton)
+        if InCombatLockdown and InCombatLockdown() then return end
+        if (mouseButton == "LeftButton" or mouseButton == "LeftButtonDown") and s.questLogIndex and UseQuestLogSpecialItem then
+            pcall(UseQuestLogSpecialItem, s.questLogIndex)
+        end
+    end)
 
     -- Tooltips
     btn:SetScript("OnEnter", function(s)
@@ -731,13 +739,68 @@ function StandaloneTracker:UpdateItemButton(trackedQuests)
             end
         else
             local itemName = (q.itemID and GetItemInfo and GetItemInfo(q.itemID))
-            local itemAttr = itemName or q.itemLink or (q.itemID and ("item:" .. q.itemID))
-            btn:SetAttribute("type", "item")
-            btn:SetAttribute("item", itemAttr)
+            if (not itemName or itemName == "") and q.itemLink then
+                itemName = q.itemLink:match("%[(.-)%]")
+            end
+
+            -- Locate item bag and slot for immediate, 100% reliable execution
+            local itemBag, itemSlot = nil, nil
+            if q.itemID then
+                local numBags = NUM_BAG_SLOTS or 4
+                for bag = 0, numBags do
+                    local numSlots = 0
+                    if C_Container and C_Container.GetContainerNumSlots then
+                        numSlots = C_Container.GetContainerNumSlots(bag) or 0
+                    elseif _G.GetContainerNumSlots then
+                        numSlots = _G.GetContainerNumSlots(bag) or 0
+                    end
+                    for slot = 1, numSlots do
+                        local id = nil
+                        if C_Container and C_Container.GetContainerItemID then
+                            id = C_Container.GetContainerItemID(bag, slot)
+                        elseif _G.GetContainerItemID then
+                            id = _G.GetContainerItemID(bag, slot)
+                        end
+                        if id == q.itemID then
+                            itemBag = bag
+                            itemSlot = slot
+                            break
+                        end
+                    end
+                    if itemBag then break end
+                end
+            end
+
+            local macroText = nil
+            if itemBag and itemSlot then
+                macroText = string_format("/use %d %d", itemBag, itemSlot)
+            elseif itemName and itemName ~= "" then
+                macroText = string_format("/use %s", itemName)
+            elseif q.itemID then
+                macroText = string_format("/use item:%d", q.itemID)
+            end
+
+            if macroText then
+                btn:SetAttribute("type", "macro")
+                btn:SetAttribute("type1", "macro")
+                btn:SetAttribute("macrotext", macroText)
+                btn:SetAttribute("macrotext1", macroText)
+            else
+                local itemAttr = itemName or q.itemLink or (q.itemID and ("item:" .. q.itemID))
+                btn:SetAttribute("type", "item")
+                btn:SetAttribute("type1", "item")
+                btn:SetAttribute("item", itemAttr)
+                btn:SetAttribute("item1", itemAttr)
+            end
+
             btn.questLogIndex = q.questLogIndex
             local strata = (ns.db and ns.db.itemButtonStrata) or "MEDIUM"
             btn:SetFrameStrata(strata)
-            btn:SetFrameLevel(25)
+            local targetLevel = 250
+            if block and block.header and block.header.GetFrameLevel then
+                targetLevel = math.max(250, block.header:GetFrameLevel() + 50)
+            end
+            btn:SetFrameLevel(targetLevel)
 
             if block and block.header then
                 btn:ClearAllPoints()
@@ -807,7 +870,11 @@ function StandaloneTracker:UpdateItemButtonStrata()
         for _, btn in ipairs(self.itemButtons) do
             if btn.SetFrameStrata then
                 btn:SetFrameStrata(strata)
-                btn:SetFrameLevel(25)
+                local targetLevel = 250
+                if btn.parentBlock and btn.parentBlock.header and btn.parentBlock.header.GetFrameLevel then
+                    targetLevel = math.max(250, btn.parentBlock.header:GetFrameLevel() + 50)
+                end
+                btn:SetFrameLevel(targetLevel)
             end
         end
     end

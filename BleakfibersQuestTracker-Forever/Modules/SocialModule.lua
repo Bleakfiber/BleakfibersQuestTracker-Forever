@@ -766,57 +766,92 @@ function SocialModule:GetPartyQuestDetails(questID, questLogIndex)
     local missing = {}
     local isRaid = IsInRaid and IsInRaid()
 
-    for i = 1, numMembers do
-        local unit = isRaid and ("raid" .. i) or (i < numMembers and ("party" .. i) or nil)
-        if unit and UnitExists(unit) and not UnitIsUnit(unit, "player") then
-            local rawName = UnitName(unit)
-            if rawName and rawName ~= "" and rawName ~= UNKNOWNOBJECT and rawName ~= "Unknown" then
-                local isConnected = UnitIsConnected(unit)
-                local isOnQuest = false
+    local unitsToCheck = {}
+    if isRaid then
+        local num = (GetNumGroupMembers and GetNumGroupMembers()) or numMembers
+        for i = 1, num do
+            local u = "raid" .. i
+            if UnitExists(u) and not UnitIsUnit(u, "player") then
+                table.insert(unitsToCheck, u)
+            end
+        end
+    else
+        local numParty = (GetNumSubgroupMembers and GetNumSubgroupMembers()) or (numMembers - 1)
+        for i = 1, numParty do
+            local u = "party" .. i
+            if UnitExists(u) and not UnitIsUnit(u, "player") then
+                table.insert(unitsToCheck, u)
+            end
+        end
+    end
 
-                -- 1. Native engine IsUnitOnQuest (Classic/Vanilla)
-                if questLogIndex and questLogIndex > 0 and IsUnitOnQuest then
+    for _, unit in ipairs(unitsToCheck) do
+        local rawName = UnitName(unit)
+        if rawName and rawName ~= "" and rawName ~= UNKNOWNOBJECT and rawName ~= "Unknown" then
+            local isConnected = UnitIsConnected(unit)
+            local isOnQuest = false
+
+            -- 1. Modern C_QuestLog.IsUnitOnQuest (Official Blizzard signature: unit, questID)
+            if questID and C_QuestLog and C_QuestLog.IsUnitOnQuest then
+                local ok, res = pcall(C_QuestLog.IsUnitOnQuest, unit, questID)
+                if ok and res then isOnQuest = true end
+                if not isOnQuest then
+                    -- Fallback in case of custom wrapper or older build
+                    local ok2, res2 = pcall(C_QuestLog.IsUnitOnQuest, questID, unit)
+                    if ok2 and res2 then isOnQuest = true end
+                end
+            end
+
+            -- 2. Native engine IsUnitOnQuest (Classic Era: questLogIndex, unit)
+            if not isOnQuest and IsUnitOnQuest then
+                if questLogIndex and questLogIndex > 0 then
                     local ok, res = pcall(IsUnitOnQuest, questLogIndex, unit)
                     if ok and res then isOnQuest = true end
+                    if not isOnQuest then
+                        local ok2, res2 = pcall(IsUnitOnQuest, unit, questLogIndex)
+                        if ok2 and res2 then isOnQuest = true end
+                    end
                 end
-
-                -- 2. Modern C_QuestLog.IsUnitOnQuest
-                if not isOnQuest and questID and C_QuestLog and C_QuestLog.IsUnitOnQuest then
-                    local ok, res = pcall(C_QuestLog.IsUnitOnQuest, questID, unit)
+                if not isOnQuest and questID then
+                    local ok, res = pcall(IsUnitOnQuest, questID, unit)
                     if ok and res then isOnQuest = true end
+                    if not isOnQuest then
+                        local ok2, res2 = pcall(IsUnitOnQuest, unit, questID)
+                        if ok2 and res2 then isOnQuest = true end
+                    end
                 end
+            end
 
-                -- 3. Fallback to Addon Sync / system feedback cache
-                if not isOnQuest then
-                    local clean = CleanName(rawName)
-                    local haveData = (ns.partyQuestData and ns.partyQuestData[questID] and ns.partyQuestData[questID].have) or {}
-                    if haveData[clean] then isOnQuest = true end
-                end
+            -- 3. Fallback to Addon Sync / system feedback cache
+            if not isOnQuest then
+                local clean = CleanName(rawName)
+                local haveData = (ns.partyQuestData and ns.partyQuestData[questID] and ns.partyQuestData[questID].have) or {}
+                if haveData[clean] then isOnQuest = true end
+            end
 
-                -- Class coloring
-                local _, classFile = UnitClass(unit)
-                local coloredName = rawName
-                local color = classFile and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile]
-                if color and color.colorStr then
-                    coloredName = string_format("|c%s%s|r", color.colorStr, rawName)
-                elseif color and color.r then
-                    coloredName = string_format("|cff%02x%02x%02x%s|r", math.floor(color.r * 255), math.floor(color.g * 255), math.floor(color.b * 255), rawName)
-                end
+            -- Class coloring
+            local _, classFile = UnitClass(unit)
+            local coloredName = rawName
+            local color = classFile and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile]
+            if color and color.colorStr then
+                coloredName = string_format("|c%s%s|r", color.colorStr, rawName)
+            elseif color and color.r then
+                coloredName = string_format("|cff%02x%02x%02x%s|r", math.floor(color.r * 255), math.floor(color.g * 255), math.floor(color.b * 255), rawName)
+            end
 
-                local entry = {
-                    unit = unit,
-                    name = rawName,
-                    coloredName = coloredName,
-                    class = classFile,
-                    isConnected = isConnected,
-                    isOnQuest = isOnQuest,
-                }
+            local entry = {
+                unit = unit,
+                name = rawName,
+                coloredName = coloredName,
+                class = classFile,
+                isConnected = isConnected,
+                isOnQuest = isOnQuest,
+            }
 
-                if isOnQuest then
-                    table.insert(onQuest, entry)
-                else
-                    table.insert(missing, entry)
-                end
+            if isOnQuest then
+                table.insert(onQuest, entry)
+            else
+                table.insert(missing, entry)
             end
         end
     end
@@ -931,9 +966,20 @@ function SocialModule:Initialize()
                 CheckForCompletions()
             end)
 
-        -- 5. Completion Sound Alerts
-        elseif event == "QUEST_WATCH_UPDATE" or event == "QUEST_LOG_UPDATE" or (event == "UNIT_QUEST_LOG_CHANGED" and arg1 == "player") then
+        -- 5. Completion Sound Alerts & Quest Log Changes
+        elseif event == "QUEST_WATCH_UPDATE" or event == "QUEST_LOG_UPDATE" then
             CheckForCompletions()
+
+        elseif event == "UNIT_QUEST_LOG_CHANGED" then
+            if arg1 == "player" then
+                CheckForCompletions()
+            else
+                if ns.StandaloneTracker and ns.StandaloneTracker.RequestUpdate then
+                    ns.StandaloneTracker:RequestUpdate()
+                elseif ns.StandaloneTracker and ns.StandaloneTracker.UpdateTracker then
+                    ns.StandaloneTracker:UpdateTracker()
+                end
+            end
 
         elseif event == "QUEST_REMOVED" then
             local qid = arg1

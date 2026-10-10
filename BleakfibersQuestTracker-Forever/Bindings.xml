@@ -1,9 +1,7 @@
 <Bindings>
     <!-- Use Active Quest Item -->
-    <Binding name="CLICK BleakfiberQuestItemButton1:LeftButton" category="Bleakfiber's Quest Tracker" runOnUp="false" />
-    <Binding name="BLEAKFIBER_USE_QUEST_ITEM" category="Bleakfiber's Quest Tracker" runOnUp="false">
-        if BleakfiberQuestItemButton1 and BleakfiberQuestItemButton1:IsShown() then
-            BleakfiberQuestItemButton1:Click("LeftButton")
-        end
+    <Binding name="CLICK BleakfiberQuestItemButton1:LeftButton" header="BLEAKFIBER_TRACKER" runOnUp="false" />
+    <Binding name="BLEAKFIBER_USE_QUEST_ITEM" header="BLEAKFIBER_TRACKER" runOnUp="false">
+        Bleakfiber_UseQuestItem();
     </Binding>
 </Bindings>
