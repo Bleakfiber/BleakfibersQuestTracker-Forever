@@ -1961,10 +1961,11 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1, ...)
         end
 
         -- WoW Forever SavedVariables Periodic Flush:
-        -- Sync the live AceDB profile into both global tables every 30 seconds.
-        -- This protects against crashes/disconnects where WoW doesn't get to run
-        -- its normal PLAYER_LOGOUT serialization.
-        local function FlushDBToGlobals()
+        -- Sync the live AceDB profile into both global tables.
+        -- Debounced by 1.5s to prevent massive synchronous DeepCopy freezes when adjusting settings or dragging sliders.
+        local flushPending = false
+        local function DoFlush()
+            flushPending = false
             local liveDB = _G["BleakfiberTrackerDB"]
             if liveDB and type(liveDB) == "table" then
                 _G["BleakfiberTrackerBackupDB"] = DeepCopy(liveDB)
@@ -1973,11 +1974,25 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1, ...)
                 _G["BleakfiberTrackerCharDB"].framePosition = DeepCopy(ns.db.framePosition)
             end
         end
+
+        local function FlushDBToGlobals(immediate)
+            if immediate then
+                DoFlush()
+                return
+            end
+            if flushPending then return end
+            flushPending = true
+            if C_Timer and C_Timer.After then
+                C_Timer.After(1.5, DoFlush)
+            else
+                DoFlush()
+            end
+        end
         ns.FlushDBToGlobals = FlushDBToGlobals
 
-        -- Use C_Timer if available (modern clients), otherwise fallback to OnUpdate throttle
+        -- Periodic 30-second background flush ticker
         if C_Timer and C_Timer.NewTicker then
-            C_Timer.NewTicker(30, FlushDBToGlobals)
+            C_Timer.NewTicker(30, function() FlushDBToGlobals(true) end)
         else
             local elapsed = 0
             local flushFrame = CreateFrame("Frame")
@@ -2006,7 +2021,7 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1, ...)
         -- Aggressive flush: ensure both primary and backup globals are fully up to date
         -- before WoW serializes them to disk (to both root and 70/ folders)
         if ns.FlushDBToGlobals then
-            ns.FlushDBToGlobals()
+            ns.FlushDBToGlobals(true)
         end
         local liveDB = _G["BleakfiberTrackerDB"]
 

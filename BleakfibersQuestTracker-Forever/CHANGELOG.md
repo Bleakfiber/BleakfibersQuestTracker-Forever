@@ -1,5 +1,12 @@
 # Changelog - Bleakfiber's Quest Tracker (Forever)
 
+## [1.1.8] - 2026-10-10
+
+### Fixed
+- **Eliminated Map & Quest Log Hitching**: Removed `SelectQuestLogEntry` selection thrashing in `CrossZoneModule`. The module previously looped through all quests and swapped the active quest log selection back and forth, forcing 40+ Blizzard Quest Log UI repaints, scroll recalculations, and event storms every time the map or quest log opened.
+- **Eliminated Settings Adjustment Freeze**: Debounced `FlushDBToGlobals` SavedVariables serialization with a 1.5-second timer. Synchronous recursive `DeepCopy` operations no longer execute dozens of times per second while moving sliders or clicking options.
+- **Optimized Redraw & Bag Scanning**: Single-pass bag scanner in `UpdateItemButton` reduces bag slot queries by over 80%. Coalesced tracker re-layout requests in `Tracker:UpdateSettings` and suppressed redundant tracker redraw triggers in `WayfinderModule` during `QUEST_LOG_UPDATE`.
+
 ## [1.1.7] - 2026-10-10
 
 ### Fixed

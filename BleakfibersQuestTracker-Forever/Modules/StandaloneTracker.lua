@@ -669,6 +669,21 @@ function StandaloneTracker:UpdateItemButton(trackedQuests)
     local topBound = (header and header:IsVisible() and header:GetBottom()) or (sf and sf:IsVisible() and sf:GetTop())
     local bottomBound = (tracker and tracker:IsVisible() and tracker:GetBottom()) or (sf and sf:IsVisible() and sf:GetBottom())
 
+    -- Single-pass inventory bag scan: map itemID -> { bag, slot }
+    local itemBagMap = {}
+    local numBags = NUM_BAG_SLOTS or 4
+    for bag = 0, numBags do
+        local numSlots = (C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerNumSlots(bag))
+            or (_G.GetContainerNumSlots and _G.GetContainerNumSlots(bag)) or 0
+        for slot = 1, numSlots do
+            local id = (C_Container and C_Container.GetContainerItemID and C_Container.GetContainerItemID(bag, slot))
+                or (_G.GetContainerItemID and _G.GetContainerItemID(bag, slot))
+            if id and not itemBagMap[id] then
+                itemBagMap[id] = { bag = bag, slot = slot }
+            end
+        end
+    end
+
     -- 2. Update button for each item quest
     for i, q in ipairs(itemQuests) do
         local btn = self:GetOrCreateItemButton(i)
@@ -743,33 +758,10 @@ function StandaloneTracker:UpdateItemButton(trackedQuests)
                 itemName = q.itemLink:match("%[(.-)%]")
             end
 
-            -- Locate item bag and slot for immediate, 100% reliable execution
-            local itemBag, itemSlot = nil, nil
-            if q.itemID then
-                local numBags = NUM_BAG_SLOTS or 4
-                for bag = 0, numBags do
-                    local numSlots = 0
-                    if C_Container and C_Container.GetContainerNumSlots then
-                        numSlots = C_Container.GetContainerNumSlots(bag) or 0
-                    elseif _G.GetContainerNumSlots then
-                        numSlots = _G.GetContainerNumSlots(bag) or 0
-                    end
-                    for slot = 1, numSlots do
-                        local id = nil
-                        if C_Container and C_Container.GetContainerItemID then
-                            id = C_Container.GetContainerItemID(bag, slot)
-                        elseif _G.GetContainerItemID then
-                            id = _G.GetContainerItemID(bag, slot)
-                        end
-                        if id == q.itemID then
-                            itemBag = bag
-                            itemSlot = slot
-                            break
-                        end
-                    end
-                    if itemBag then break end
-                end
-            end
+            -- Locate item bag and slot from single-pass scan
+            local bagLoc = q.itemID and itemBagMap[q.itemID]
+            local itemBag = bagLoc and bagLoc.bag
+            local itemSlot = bagLoc and bagLoc.slot
 
             local macroText = nil
             if itemBag and itemSlot then

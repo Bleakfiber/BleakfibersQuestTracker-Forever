@@ -1246,7 +1246,9 @@ function Tracker:UpdateSettings()
     end
 
     -- Trigger quest tracker re-layout to adapt all blocks to new width
-    if ns.StandaloneTracker and ns.StandaloneTracker.UpdateTracker then
+    if ns.StandaloneTracker and ns.StandaloneTracker.RequestUpdate then
+        ns.StandaloneTracker:RequestUpdate()
+    elseif ns.StandaloneTracker and ns.StandaloneTracker.UpdateTracker then
         ns.StandaloneTracker:UpdateTracker()
     end
 

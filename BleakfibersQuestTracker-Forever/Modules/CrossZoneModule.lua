@@ -484,20 +484,13 @@ local function GetQuestTexts(questID, questLogIndex)
 
     -- 3. Classic / Retail Full Quest Text (Description & Objectives Summary)
     if questLogIndex and GetQuestLogQuestText then
-        local d, o = GetQuestLogQuestText(questLogIndex)
-        if o and o ~= "" then AddObj(o) end
-        if d and d ~= "" and not descText then descText = d end
-
-        -- If nothing was returned yet, select entry safely to read full text
-        if #objTexts == 0 and not descText and SelectQuestLogEntry and GetQuestLogSelection then
-            local oldSel = GetQuestLogSelection()
-            SelectQuestLogEntry(questLogIndex)
+        -- Only query GetQuestLogQuestText directly if this quest happens to be the currently selected one,
+        -- avoiding any SelectQuestLogEntry calls that cause UI repaint freezes when the quest log or map is open.
+        local curSel = GetQuestLogSelection and GetQuestLogSelection()
+        if curSel and curSel == questLogIndex then
             local selDesc, selObj = GetQuestLogQuestText()
             if selObj and selObj ~= "" then AddObj(selObj) end
             if selDesc and selDesc ~= "" and not descText then descText = selDesc end
-            if oldSel and oldSel > 0 and oldSel ~= questLogIndex then
-                SelectQuestLogEntry(oldSel)
-            end
         end
     end
 

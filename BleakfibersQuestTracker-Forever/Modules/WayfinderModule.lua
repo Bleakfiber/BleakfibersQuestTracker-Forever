@@ -3677,7 +3677,7 @@ function WayfinderModule:Initialize()
             end
         elseif event == "QUEST_LOG_UPDATE" or event == "ZONE_CHANGED_NEW_AREA" or event == "ZONE_CHANGED" or event == "PLAYER_ENTERING_WORLD" then
             if ns.activeQuestID and not ns.waypointExplicitlyCleared then
-                WayfinderModule:SetQuestTarget(ns.activeQuestID)
+                WayfinderModule:SetQuestTarget(ns.activeQuestID, true)
             end
         end
     end)
