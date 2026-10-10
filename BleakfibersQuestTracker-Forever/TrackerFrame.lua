@@ -343,15 +343,21 @@ function Tracker:Initialize()
     countText:SetWordWrap(false)
     countText:SetText("")
 
-    -- Menu Button [...]
+    -- Menu Button [Settings Gear via CommonDropdownSettings2x]
     local menuBtn = CreateFrame("Button", nil, header)
     header.filterMenuBtn = menuBtn
-    menuBtn:SetSize(26, 16)
+    menuBtn:SetSize(16, 16)
     menuBtn:SetPoint("RIGHT", header, "RIGHT", -4, 0)
-    menuBtn:SetNormalFontObject("GameFontNormalSmall")
-    menuBtn:SetHighlightFontObject("GameFontHighlightSmall")
+    menuBtn:SetNormalTexture("Interface\\Common\\CommonDropdownSettings2x")
+    local nt = menuBtn:GetNormalTexture()
+    if nt then nt:SetTexCoord(0, 56/256, 0, 56/128) end
+    menuBtn:SetHighlightTexture("Interface\\Common\\CommonDropdownSettings2x")
+    local ht = menuBtn:GetHighlightTexture()
+    if ht then ht:SetTexCoord(56/256, 112/256, 0, 56/128) end
+    menuBtn:SetPushedTexture("Interface\\Common\\CommonDropdownSettings2x")
+    local pt = menuBtn:GetPushedTexture()
+    if pt then pt:SetTexCoord(0, 56/256, 56/128, 112/128) end
     menuBtn:RegisterForClicks("AnyUp")
-    menuBtn:SetText("[...]")
     menuBtn:SetScript("OnClick", function(self)
         if IsAltKeyDown() then
             if ns.Config then ns.Config:ToggleConfigFrame() end
@@ -728,12 +734,8 @@ function Tracker:UpdateFilterButtons()
     if menuBtn then
         if hCfg.showMenuBtn ~= false then
             menuBtn:Show()
-            menuBtn:SetText(activeHex .. "[...]|r")
-            if menuBtn:GetFontString() then
-                menuBtn:SetWidth(math.max(26, menuBtn:GetFontString():GetStringWidth() + 6))
-            else
-                menuBtn:SetWidth(26)
-            end
+            menuBtn:SetSize(16, 16)
+            menuBtn:SetText("")
         else
             menuBtn:Hide()
         end

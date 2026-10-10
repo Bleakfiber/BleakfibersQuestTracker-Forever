@@ -254,7 +254,8 @@ local function GetFormattedQuestTitle(questInfo)
     if showPartyBadge and ns.SocialModule and ns.SocialModule.GetPartyQuestDetails then
         local partyDetails = ns.SocialModule:GetPartyQuestDetails(questInfo.questID, questInfo.questLogIndex)
         if partyDetails and partyDetails.onQuestCount > 0 then
-            tag = tag .. string.format(" |cff00e5ff[P%d]|r", partyDetails.onQuestCount)
+            local groupIcon = "|TInterface\\QUESTFRAME\\QuestLogQuestTypeIcons2x:13:13:0:0:256:256:100:136:10:40|t"
+            tag = tag .. string.format(" |cff00e5ff[%s%d]|r", groupIcon, partyDetails.onQuestCount)
         end
     end
     
@@ -268,11 +269,11 @@ local function GetFormattedQuestTitle(questInfo)
             if iconChoice == "star" then
                 activeMarker = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:13:13:0:0|t "
             elseif iconChoice == "arrow" then
-                activeMarker = "|TInterface\\Buttons\\UI-SpellbookIcon-NextPage-Up:13:13:0:0|t "
+                activeMarker = "|TInterface\\Common\\CommonIcons:13:13:0:0:2048:1024:573:728:266:516|t "
             elseif iconChoice == "blizz" then
                 activeMarker = "|TInterface\\GossipFrame\\AvailableQuestIcon:13:13:0:0|t "
             elseif iconChoice == "pointer" then
-                activeMarker = "|cff00e5ff> |r"
+                activeMarker = "|TInterface\\Common\\CommonIcons:13:13:0:0:2048:1024:573:728:266:516|t "
             elseif iconChoice == "none" then
                 activeMarker = ""
             else
@@ -891,8 +892,14 @@ local function AcquireZoneHeader(parent)
         btn.collapseText:SetJustifyV("MIDDLE")
         btn.collapseText:SetWordWrap(false)
 
+        btn.collapseArrow = btn:CreateTexture(nil, "OVERLAY")
+        btn.collapseArrow:SetSize(12, 12)
+        btn.collapseArrow:SetTexture("Interface\\Common\\CommonIcons")
+        btn.collapseArrow:SetTexCoord(573/2048, 728/2048, 266/1024, 516/1024)
+        btn.collapseArrow:SetPoint("LEFT", btn, "LEFT", 6, 0)
+
         btn.title = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        btn.title:SetPoint("LEFT", btn.collapseText, "RIGHT", 4, 0)
+        btn.title:SetPoint("LEFT", btn.collapseArrow, "RIGHT", 6, 0)
         btn.title:SetPoint("RIGHT", btn, "RIGHT", -6, 0)
         btn.title:SetJustifyH("LEFT")
         btn.title:SetJustifyV("MIDDLE")
@@ -1560,27 +1567,27 @@ local function ShowQuestTooltip(anchorFrame, qInfo)
             if partyDetails.onQuestCount > 0 then
                 for _, member in ipairs(partyDetails.onQuest) do
                     local nameStr = classColorParty and member.coloredName or member.name
-                    local statusTag = "|cff00ff00[+ On Quest]|r"
+                    local statusTag = "|TInterface\\Common\\CommonIcons:13:13:0:0:2048:1024:13:253:542:752|t |cff00ff00On Quest|r"
                     if not member.isConnected then
                         statusTag = statusTag .. " |cff888888(Offline)|r"
                     end
-                    GameTooltip:AddLine("  • " .. nameStr .. " " .. statusTag)
+                    GameTooltip:AddLine("  - " .. nameStr .. " " .. statusTag)
                 end
             else
-                GameTooltip:AddLine("  • |cff888888No other party members are on this quest|r")
+                GameTooltip:AddLine("  - |cff888888No other party members are on this quest|r")
             end
 
             if showMissing and partyDetails.missingCount > 0 then
                 for _, member in ipairs(partyDetails.missing) do
                     local nameStr = classColorParty and member.coloredName or member.name
-                    local statusTag = "|cffff6666[- Missing]|r"
+                    local statusTag = "|TInterface\\Common\\CommonIcons:13:13:0:0:2048:1024:536:761:533:758|t |cffff6666Missing|r"
                     if partyDetails.isPushable then
                         statusTag = statusTag .. " |cff00e5ff(Click to Share)|r"
                     end
                     if not member.isConnected then
                         statusTag = statusTag .. " |cff888888(Offline)|r"
                     end
-                    GameTooltip:AddLine("  • " .. nameStr .. " " .. statusTag)
+                    GameTooltip:AddLine("  - " .. nameStr .. " " .. statusTag)
                 end
             end
         end
@@ -2746,17 +2753,22 @@ function StandaloneTracker:UpdateTracker()
                 end
             end
 
-            -- Setup collapse button text [-] / [+]
-            zh.collapseText:SetWordWrap(false)
-            zh.collapseText:SetJustifyH("CENTER")
-            zh.collapseText:SetJustifyV("MIDDLE")
-            zh.collapseText:SetText(isZoneCollapsed and "[+]" or "[-]")
-            zh.collapseText:SetTextColor(zhColor.r, zhColor.g, zhColor.b)
-            local collapseW = math.max(20, math.ceil(zh.collapseText:GetStringWidth() + 4))
-            zh.collapseText:ClearAllPoints()
-            zh.collapseText:SetPoint("LEFT", zh, "LEFT", 4, 0)
-            zh.collapseText:SetWidth(collapseW)
-            zh.collapseText:SetHeight(zhHeight)
+            -- Setup collapse arrow from CommonIcons (right when collapsed, down when expanded)
+            if not zh.collapseArrow then
+                zh.collapseArrow = zh:CreateTexture(nil, "OVERLAY")
+                zh.collapseArrow:SetSize(12, 12)
+                zh.collapseArrow:SetTexture("Interface\\Common\\CommonIcons")
+                zh.collapseArrow:SetTexCoord(573/2048, 728/2048, 266/1024, 516/1024)
+            end
+            zh.collapseArrow:ClearAllPoints()
+            zh.collapseArrow:SetPoint("LEFT", zh, "LEFT", 6, 0)
+            zh.collapseArrow:Show()
+            if isZoneCollapsed then
+                zh.collapseArrow:SetRotation(0) -- Pointing right
+            else
+                zh.collapseArrow:SetRotation(math.pi / 2) -- Pointing down
+            end
+            zh.collapseText:Hide()
 
             -- Format zone title with quest count inline: e.g. "Dun Morogh (3)"
             local zoneDisplayText = z
@@ -2765,7 +2777,7 @@ function StandaloneTracker:UpdateTracker()
             end
 
             zh.title:ClearAllPoints()
-            zh.title:SetPoint("LEFT", zh.collapseText, "RIGHT", 4, 0)
+            zh.title:SetPoint("LEFT", zh.collapseArrow, "RIGHT", 6, 0)
             zh.title:SetPoint("RIGHT", zh, "RIGHT", -6, 0)
             zh.title:SetJustifyH("LEFT")
             zh.title:SetJustifyV("MIDDLE")

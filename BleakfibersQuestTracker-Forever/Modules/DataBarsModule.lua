@@ -862,7 +862,7 @@ function DataBarsModule:ShowXPTooltip(owner)
                 if not greyNow and greyAtNext then
                     statusTag = " |cffff2020[Grey at Ding!]|r"
                 end
-                GameTooltip:AddDoubleLine(string_format("• [%d] %s%s", q.level, q.title, statusTag),
+                GameTooltip:AddDoubleLine(string_format("  - [%d] %s%s", q.level, q.title, statusTag),
                     string_format("|cff20ff20+%s XP|r", BreakUpLargeNumbers(q.rewardXP)), 0.9, 0.9, 0.9)
             end
             GameTooltip:AddDoubleLine("Total Completed Turn-In XP:", string_format("|cff00ff00+%s XP (%d quests)|r",
@@ -871,8 +871,9 @@ function DataBarsModule:ShowXPTooltip(owner)
             if isDingReady then
                 local overflow = projectedXP - maxXP
                 GameTooltip:AddLine(" ")
-                GameTooltip:AddLine(string_format("|cff00ff00+ Ding Ready!|r Turning in these quests will level you up to %d (+%s overflow XP)!",
-                    curLevel + 1, BreakUpLargeNumbers(overflow)), 0.2, 1.0, 0.2, true)
+                local checkIcon = "|TInterface\\Common\\CommonIcons:13:13:0:0:2048:1024:13:253:542:752|t"
+                GameTooltip:AddLine(string_format("%s |cff00ff00Ding Ready!|r Turning in these quests will level you up to %d (+%s overflow XP)!",
+                    checkIcon, curLevel + 1, BreakUpLargeNumbers(overflow)), 0.2, 1.0, 0.2, true)
             end
         else
             GameTooltip:AddLine("  No completed quests ready for turn-in.", 0.6, 0.6, 0.6)

@@ -1853,7 +1853,7 @@ local function GetOptionsTable()
                             },
                             showPartyBadge = {
                                 name = "Show Party Count Badge on Tracker",
-                                desc = "Appends a [P #] group count badge next to quest titles in the tracker when party members share the quest.",
+                                desc = "Appends a group count badge with party icon next to quest titles in the tracker when party members share the quest.",
                                 type = "toggle",
                                 width = "full",
                                 order = 3.7,
@@ -4757,9 +4757,12 @@ local function CreateStyledDropdown(parent, labelPrefix, width, height, options,
     label:SetWordWrap(false)
     btn.Label = label
 
-    local arrow = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local arrow = btn:CreateTexture(nil, "OVERLAY")
+    arrow:SetSize(12, 12)
     arrow:SetPoint("RIGHT", btn, "RIGHT", -6, 0)
-    arrow:SetText("|cFFFFD100v|r")
+    arrow:SetTexture("Interface\\Common\\CommonIcons")
+    arrow:SetTexCoord(573/2048, 728/2048, 266/1024, 516/1024)
+    arrow:SetRotation(math.pi / 2)
 
     local function GetOptionsList()
         if type(options) == "function" then
@@ -4884,7 +4887,7 @@ local function CreateStyledDropdown(parent, labelPrefix, width, height, options,
             b.isActive = isActive
             if isActive then
                 selectedIndex = i
-                b.text:SetText("|cFFFFD100* |r" .. itm.label)
+                b.text:SetText("|TInterface\\Common\\CommonIcons:13:13:0:0:2048:1024:271:510:26:235|t " .. itm.label)
                 b:SetBackdropColor(0.22, 0.19, 0.12, 0.95)
                 b:SetBackdropBorderColor(unpack(COLORS.goldBorder))
             else
@@ -5477,8 +5480,8 @@ local function BuildQuestsTab(content, syncList)
     )
     table.insert(syncList, cbClassColorParty)
 
-    local cbPartyBadge = CreateStyledCheckbox(content, "Show Party Count Badge [P #]",
-        "Appends a [P #] group count badge next to quest titles in the tracker when party members share the quest.",
+    local cbPartyBadge = CreateStyledCheckbox(content, "Show Party Count Badge [|TInterface\\QUESTFRAME\\QuestLogQuestTypeIcons2x:12:12:0:0:256:256:100:136:10:40|t #]",
+        "Appends a party member count badge with group icon next to quest titles in the tracker when party members share the quest.",
         function() return tipDb.showPartyBadge == true end,
         function(v)
             tipDb.showPartyBadge = v

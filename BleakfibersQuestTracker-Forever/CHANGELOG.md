@@ -1,5 +1,14 @@
 # Changelog - Bleakfiber's Quest Tracker (Forever)
 
+## [1.1.4] - 2026-10-10
+
+### Changed
+- **Blizzard Texture Art Integration**: Replaced Unicode and text markers with native Blizzard art assets:
+  - **Group / Party Icon**: Rendered the crisp party silhouette sprite from `Interface\QUESTFRAME\QuestLogQuestTypeIcons2x` for party member count badges.
+  - **Arrows, Checkmarks & X Marks**: Rendered native textures from `Interface\Common\CommonIcons` for party status tooltips (green checkmark for "On Quest", red X for "Missing"), Ding Ready alerts, active quest pointer arrows, and dropdown item selection.
+  - **Zone Header Collapse / Expand**: Replaced `[+]` / `[-]` text with hardware-rotated gold arrow textures from `CommonIcons` (pointing right when collapsed, pointing down when expanded).
+  - **Tracker Header Settings Button**: Styled the menu button as a native Blizzard gear button using normal, highlight, and pushed states from `Interface\Common\CommonDropdownSettings2x`.
+
 ## [1.1.3] - 2026-10-10
 
 ### Changed

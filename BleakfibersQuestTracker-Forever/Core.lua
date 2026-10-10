@@ -1105,7 +1105,7 @@ ns.defaultDB = {
             showPartyStatus = true,      -- Show party members on quest in tooltip
             showMissingParty = true,     -- Show party members missing the quest in tooltip
             classColorParty = true,      -- Color party member names with class color
-            showPartyBadge = false,      -- Append [P #] group count badge next to quest title
+            showPartyBadge = false,      -- Append group icon count badge next to quest title
         },
 
         -- Audio & Sounds
