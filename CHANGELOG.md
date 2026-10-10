@@ -2,6 +2,13 @@
 
 All notable changes to **Bleakfiber's Quest Tracker - Forever** are documented below.
 
+## [1.1.3] - 2026-10-10: Quest Item Secure Action & Keybinding Polish
+
+### Fixed
+- **ADDON FORBIDDEN: UseQuestLogSpecialItem Crash**: Eliminated insecure `HookScript("OnClick")` fallback invoking protected API `UseQuestLogSpecialItem()`. Quest item buttons now rely purely on Blizzard's native C++ `SecureActionButtonTemplate` item execution.
+- **Keybinding Engine Integration**: Streamlined `BLEAKFIBER_USE_QUEST_ITEM` keybinding to use secure `CLICK BleakfiberQuestItemButton1:LeftButton` dispatch, eliminating script evaluation in combat.
+- **Initialization Pre-Creation**: Pre-created primary quest item button during module startup so keybinding click targets always exist.
+
 ## [1.1.0] - 2026-10-08: Party Quest Status & Tooltip Integration
 
 ### Party Quest Status & Tooltip Integration

@@ -491,15 +491,6 @@ function StandaloneTracker:GetOrCreateItemButton(index)
     -- Secure Action Setup
     btn:RegisterForClicks("AnyUp")
 
-    -- Fallback click invocation for native quest log item API
-    btn:HookScript("OnClick", function(s, mouseButton)
-        if mouseButton == "LeftButton" and not (InCombatLockdown and InCombatLockdown()) then
-            if s.questLogIndex and UseQuestLogSpecialItem then
-                UseQuestLogSpecialItem(s.questLogIndex)
-            end
-        end
-    end)
-
     -- Tooltips
     btn:SetScript("OnEnter", function(s)
         GameTooltip:SetOwner(s, "ANCHOR_LEFT")
@@ -721,7 +712,7 @@ function StandaloneTracker:UpdateItemButton(trackedQuests)
             end
         else
             local itemName = (q.itemID and GetItemInfo and GetItemInfo(q.itemID))
-            local itemAttr = itemName or q.itemLink or (q.itemID and ("item:" .. q.itemID)) or q.itemTexture
+            local itemAttr = itemName or q.itemLink or (q.itemID and ("item:" .. q.itemID))
             btn:SetAttribute("type", "item")
             btn:SetAttribute("item", itemAttr)
             btn.questLogIndex = q.questLogIndex
@@ -2853,6 +2844,12 @@ end)
 
 function StandaloneTracker:Initialize()
     HookBlizzardTracker()
+
+    -- Pre-create primary quest item button so keybinding CLICK targets always exist
+    local primaryBtn = self:GetOrCreateItemButton(1)
+    if primaryBtn and not (InCombatLockdown and InCombatLockdown()) then
+        primaryBtn:Hide()
+    end
 
     -- Hook quest watch modifications from Quest Log or Blizzard UI
     if hooksecurefunc then

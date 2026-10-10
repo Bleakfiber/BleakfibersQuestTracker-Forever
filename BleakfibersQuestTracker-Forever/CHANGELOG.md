@@ -1,5 +1,10 @@
 # Changelog - Bleakfiber's Quest Tracker (Forever)
 
+## [1.1.3] - 2026-10-10
+
+### Changed
+- Native Dark Slate & Gold configuration GUI, dynamic element reflow, and auto-hiding scrollbar.
+
 ## [1.1.2] - 2026-10-09
 
 ### Changed

@@ -1,10 +1,6 @@
 <Bindings>
     <!-- Use Active Quest Item -->
     <Binding name="BLEAKFIBER_USE_QUEST_ITEM" category="Bleakfiber's Quest Tracker" runOnUp="false">
-        if BleakfiberQuestItemButton1 and BleakfiberQuestItemButton1:IsVisible() then
-            BleakfiberQuestItemButton1:Click()
-        elseif BleakfiberQuestItemFrame and BleakfiberQuestItemFrame:IsVisible() then
-            BleakfiberQuestItemFrame:Click()
-        end
+        CLICK BleakfiberQuestItemButton1:LeftButton
     </Binding>
 </Bindings>
