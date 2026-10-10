@@ -1,5 +1,10 @@
 # Changelog - Bleakfiber's Quest Tracker (Forever)
 
+## [1.1.6] - 2026-10-10
+
+### Changed
+- Correct party count badge texture coordinates to column 1 row 5 group icon
+
 ## [1.1.5] - 2026-10-10
 
 ### Changed

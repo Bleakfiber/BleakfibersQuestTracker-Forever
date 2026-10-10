@@ -271,7 +271,7 @@ local function GetFormattedQuestTitle(questInfo)
     if showPartyBadge and ns.SocialModule and ns.SocialModule.GetPartyQuestDetails then
         local partyDetails = ns.SocialModule:GetPartyQuestDetails(questInfo.questID, questInfo.questLogIndex)
         if partyDetails and partyDetails.onQuestCount > 0 then
-            local groupIcon = "|TInterface\\QUESTFRAME\\QuestLogQuestTypeIcons2x:13:13:0:0:256:256:100:136:10:40|t"
+            local groupIcon = "|TInterface\\QUESTFRAME\\QuestLogQuestTypeIcons2x:12:15:0:0:256:256:5:37:166:192|t"
             tag = tag .. string.format(" |cff00e5ff[%s%d]|r", groupIcon, partyDetails.onQuestCount)
         end
     end

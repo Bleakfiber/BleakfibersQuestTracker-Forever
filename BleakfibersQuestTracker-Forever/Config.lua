@@ -5480,7 +5480,7 @@ local function BuildQuestsTab(content, syncList)
     )
     table.insert(syncList, cbClassColorParty)
 
-    local cbPartyBadge = CreateStyledCheckbox(content, "Show Party Count Badge [|TInterface\\QUESTFRAME\\QuestLogQuestTypeIcons2x:12:12:0:0:256:256:100:136:10:40|t #]",
+    local cbPartyBadge = CreateStyledCheckbox(content, "Show Party Count Badge [|TInterface\\QUESTFRAME\\QuestLogQuestTypeIcons2x:12:15:0:0:256:256:5:37:166:192|t #]",
         "Appends a party member count badge with group icon next to quest titles in the tracker when party members share the quest.",
         function() return tipDb.showPartyBadge == true end,
         function(v)
