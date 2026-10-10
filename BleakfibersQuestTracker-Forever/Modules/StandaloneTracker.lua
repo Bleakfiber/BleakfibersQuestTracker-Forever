@@ -451,8 +451,9 @@ function StandaloneTracker:GetOrCreateItemButton(index)
     end
     btn.buttonIndex = index
     btn:SetSize(26, 26)
-    btn:SetFrameStrata("HIGH")
-    btn:SetFrameLevel(60)
+    local strata = (ns.db and ns.db.itemButtonStrata) or "MEDIUM"
+    btn:SetFrameStrata(strata)
+    btn:SetFrameLevel(25)
     btn:SetClampedToScreen(true)
     btn:SetMovable(true)
 
@@ -716,8 +717,9 @@ function StandaloneTracker:UpdateItemButton(trackedQuests)
             btn:SetAttribute("type", "item")
             btn:SetAttribute("item", itemAttr)
             btn.questLogIndex = q.questLogIndex
-            btn:SetFrameStrata("HIGH")
-            btn:SetFrameLevel(60)
+            local strata = (ns.db and ns.db.itemButtonStrata) or "MEDIUM"
+            btn:SetFrameStrata(strata)
+            btn:SetFrameLevel(25)
 
             if block and block.header then
                 btn:ClearAllPoints()
@@ -765,6 +767,19 @@ function StandaloneTracker:UpdateItemButton(trackedQuests)
             else
                 extraBtn:SetAlpha(0)
                 self.pendingItemUpdate = true
+            end
+        end
+    end
+end
+
+-- Dynamic Strata Updater (Live Options Sync)
+function StandaloneTracker:UpdateItemButtonStrata()
+    local strata = (ns.db and ns.db.itemButtonStrata) or "MEDIUM"
+    if self.itemButtons then
+        for _, btn in ipairs(self.itemButtons) do
+            if btn.SetFrameStrata then
+                btn:SetFrameStrata(strata)
+                btn:SetFrameLevel(25)
             end
         end
     end

@@ -970,6 +970,7 @@ ns.defaultDB = {
         scale = 1.0,
         itemButtonPosition = nil, -- Dragged quest item button position
         itemButtonPlacement = "inside_right", -- "inside_right", "outside_left"
+        itemButtonStrata = "MEDIUM", -- "LOW", "MEDIUM", "HIGH", "DIALOG"
         showTimerInObjectives = true,         -- Show countdown timer in quest objective descriptions
         onboardingCompleted = false,          -- First-time account onboarding wizard status
         collapsedQuests = {},     -- [questID or title] = true when user collapsed the quest

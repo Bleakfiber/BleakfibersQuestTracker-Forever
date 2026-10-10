@@ -815,6 +815,29 @@ local function GetOptionsTable()
                             end
                         end,
                     },
+                    itemButtonStrata = {
+                        name = "Quest Item Frame Strata",
+                        desc = "Sets the frame strata for quest item buttons. 'Medium' matches the tracker and bag addons so overlapping windows properly cover the item buttons.",
+                        type = "select",
+                        width = "full",
+                        order = 4.62,
+                        values = {
+                            ["LOW"] = "Low",
+                            ["MEDIUM"] = "Medium (Matches Tracker & Bags)",
+                            ["HIGH"] = "High",
+                            ["DIALOG"] = "Dialog",
+                        },
+                        get = function()
+                            return (db.itemButtonStrata) or "MEDIUM"
+                        end,
+                        set = function(_, val)
+                            db.itemButtonStrata = val
+                            if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
+                            if ns.StandaloneTracker and ns.StandaloneTracker.UpdateItemButtonStrata then
+                                ns.StandaloneTracker:UpdateItemButtonStrata()
+                            end
+                        end,
+                    },
                     questItemKeybind = {
                         name = "Quest Item Keybind",
                         desc = "Click to set a keyboard shortcut to instantly use the active quest item button.",
@@ -4966,6 +4989,13 @@ local ITEM_POSITIONS = {
     { key = "right", label = "Right Margin" },
 }
 
+local ITEM_STRATAS = {
+    { key = "LOW",    label = "Low" },
+    { key = "MEDIUM", label = "Medium (Matches Tracker & Bags)" },
+    { key = "HIGH",   label = "High" },
+    { key = "DIALOG", label = "Dialog" },
+}
+
 local GROW_CORNERS = {
     { key = "AUTO",        label = "Auto (Snap to Nearest Screen Corner)" },
     { key = "BOTTOMRIGHT", label = "Bottom-Right (Grows Up & Left)" },
@@ -5368,6 +5398,20 @@ local function BuildQuestsTab(content, syncList)
         "Dock quest item buttons on the left margin or right margin of the tracker."
     )
     table.insert(syncList, btnItemPos)
+
+    local btnItemStrata = CreateStyledDropdown(content, "Item Frame Strata", 190, 22, ITEM_STRATAS,
+        function() return ns.db and ns.db.itemButtonStrata or "MEDIUM" end,
+        function(v)
+            ns.db = ns.db or {}
+            ns.db.itemButtonStrata = v
+            if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
+            if ns.StandaloneTracker and ns.StandaloneTracker.UpdateItemButtonStrata then
+                ns.StandaloneTracker:UpdateItemButtonStrata()
+            end
+        end,
+        "Sets the frame strata for quest item buttons. 'Medium' matches the tracker and bag addons so overlapping windows properly cover the item buttons."
+    )
+    table.insert(syncList, btnItemStrata)
 
     local h2, d2 = CreateSectionHeader(content, "OBJECTIVES, BADGES & TOOLTIPS", 12, 0)
     local cbCompleteIcon = CreateStyledCheckbox(content, "Show Completed ? Checkmark Icon",

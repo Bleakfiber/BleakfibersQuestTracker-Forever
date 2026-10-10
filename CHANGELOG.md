@@ -2,10 +2,12 @@
 
 All notable changes to **Bleakfiber's Quest Tracker - Forever** are documented below.
 
-## [1.1.3] - 2026-10-10: Quest Item Secure Action & Keybinding Polish
+## [1.1.3] - 2026-10-10: Quest Item Secure Action, Strata & Keybinding Polish
 
 ### Fixed
 - **ADDON FORBIDDEN: UseQuestLogSpecialItem Crash**: Eliminated insecure `HookScript("OnClick")` fallback invoking protected API `UseQuestLogSpecialItem()`. Quest item buttons now rely purely on Blizzard's native C++ `SecureActionButtonTemplate` item execution.
+- **Quest Item Button Strata**: Lowered default frame strata of quest item shortcut buttons from `HIGH` to `MEDIUM` (frame level 25) matching the tracker frame so overlapping windows (such as bag addons) properly cover them.
+- **Configurable Frame Strata**: Added an `Item Frame Strata` selector (`Low`, `Medium`, `High`, `Dialog`) in both the native Dark Slate & Gold GUI and AceConfig with live dynamic sync.
 - **Keybinding Engine Integration**: Streamlined `BLEAKFIBER_USE_QUEST_ITEM` keybinding to use secure `CLICK BleakfiberQuestItemButton1:LeftButton` dispatch, eliminating script evaluation in combat.
 - **Initialization Pre-Creation**: Pre-created primary quest item button during module startup so keybinding click targets always exist.
 
