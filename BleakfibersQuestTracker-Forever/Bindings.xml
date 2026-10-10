@@ -1,6 +1,5 @@
 <Bindings>
     <!-- Use Active Quest Item -->
-    <Binding name="CLICK BleakfiberQuestItemButton1:LeftButton" header="BLEAKFIBER_TRACKER" runOnUp="false" />
     <Binding name="BLEAKFIBER_USE_QUEST_ITEM" header="BLEAKFIBER_TRACKER" runOnUp="false">
         Bleakfiber_UseQuestItem();
     </Binding>

@@ -1,5 +1,11 @@
 # Changelog - Bleakfiber's Quest Tracker (Forever)
 
+## [1.1.9] - 2026-10-10
+
+### Fixed
+- **Bindings Header Duplicate Registration**: Resolved `LUA_WARNING: Binding header BLEAKFIBER_TRACKER was attempted to be loaded more than once` from `Bindings.xml`. Consolidated the quest item shortcut into a single canonical binding definition (`BLEAKFIBER_USE_QUEST_ITEM`), eliminating duplicate header definitions and streamlining the Blizzard Key Bindings interface.
+- **Keybinding Migration**: Added automatic migration during login for any players who previously had the secondary button binding configured.
+
 ## [1.1.8] - 2026-10-10
 
 ### Fixed

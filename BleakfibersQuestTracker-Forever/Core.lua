@@ -24,7 +24,6 @@ _G["HEADER_BLEAKFIBER_TRACKER"] = "Bleakfiber's Quest Tracker"
 _G["BINDING_CATEGORY_BLEAKFIBER_TRACKER"] = "Bleakfiber's Quest Tracker"
 _G["BINDING_CATEGORY_Bleakfiber's Quest Tracker"] = "Bleakfiber's Quest Tracker"
 _G["BINDING_NAME_BLEAKFIBER_USE_QUEST_ITEM"] = "Use Active Quest Item"
-_G["BINDING_NAME_CLICK BleakfiberQuestItemButton1:LeftButton"] = "Use Active Quest Item (Secure)"
 
 function Bleakfiber_UseQuestItem()
     local btn = _G["BleakfiberQuestItemButton1"]
@@ -1941,6 +1940,18 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1, ...)
             ns.SocialModule:UpdateLootEvents()
         end
         ns:FireCallback("ON_INITIALIZE")
+
+        -- Seamless migration: if user bound legacy CLICK binding in previous versions, migrate to BLEAKFIBER_USE_QUEST_ITEM
+        if GetBindingKey and SetBinding then
+            local legacyKey1, legacyKey2 = GetBindingKey("CLICK BleakfiberQuestItemButton1:LeftButton")
+            if (legacyKey1 or legacyKey2) and not GetBindingKey("BLEAKFIBER_USE_QUEST_ITEM") then
+                if legacyKey1 then SetBinding(legacyKey1, "BLEAKFIBER_USE_QUEST_ITEM") end
+                if legacyKey2 then SetBinding(legacyKey2, "BLEAKFIBER_USE_QUEST_ITEM") end
+                if SaveBindings and GetCurrentBindingSet then
+                    SaveBindings(GetCurrentBindingSet())
+                end
+            end
+        end
 
         -- Register with Master Config addon if present
         if PublicAPI.RegisterWithMasterConfig then
