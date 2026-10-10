@@ -1,5 +1,10 @@
 # Changelog - Bleakfiber's Quest Tracker (Forever)
 
+## [1.1.5] - 2026-10-10
+
+### Changed
+- Fix BLEAKFIBER_USE_QUEST_ITEM binding syntax and safeguard GetItemQualityColor
+
 ## [1.1.4] - 2026-10-10
 
 ### Changed

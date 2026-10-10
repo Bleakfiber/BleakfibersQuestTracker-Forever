@@ -202,6 +202,23 @@ local function HookBlizzardTracker()
 end
 ns.HookBlizzardTracker = HookBlizzardTracker
 
+local function GetQualityColorHex(quality)
+    if not quality then return "|cffffffff" end
+    if C_Item and C_Item.GetItemQualityColor then
+        local _, _, _, hex = C_Item.GetItemQualityColor(quality)
+        if hex then return hex end
+    end
+    if GetItemQualityColor then
+        local _, _, _, hex = GetItemQualityColor(quality)
+        if hex then return hex end
+    end
+    if ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[quality] then
+        local qc = ITEM_QUALITY_COLORS[quality]
+        if qc.hex then return qc.hex end
+    end
+    return "|cffffffff"
+end
+
 -- Helper: Format Quest Title with Level, Difficulty Color and Badges
 local function GetFormattedQuestTitle(questInfo)
     local level = tonumber(questInfo.level) or 0
@@ -751,8 +768,18 @@ function StandaloneTracker:UpdateItemButton(trackedQuests)
             if isQuestVisible then
                 btn:SetAlpha(1)
                 btn:Show()
+                if i == 1 and not InCombatLockdown() then
+                    local key = GetBindingKey("BLEAKFIBER_USE_QUEST_ITEM") or GetBindingKey("CLICK BleakfiberQuestItemButton1:LeftButton")
+                    ClearOverrideBindings(btn)
+                    if key then
+                        SetOverrideBindingClick(btn, true, key, btn:GetName(), "LeftButton")
+                    end
+                end
             else
                 btn:Hide()
+                if i == 1 and not InCombatLockdown() then
+                    ClearOverrideBindings(btn)
+                end
             end
         end
     end
@@ -1493,7 +1520,7 @@ local function ShowQuestTooltip(anchorFrame, qInfo)
                         if choice.itemLink then
                             itemText = choice.itemLink
                         else
-                            local colorCode = (choice.quality and select(4, GetItemQualityColor(choice.quality))) or "|cffffffff"
+                            local colorCode = (choice.quality and GetQualityColorHex(choice.quality)) or "|cffffffff"
                             itemText = colorCode .. (choice.name or "Item") .. "|r"
                         end
 
@@ -1527,7 +1554,7 @@ local function ShowQuestTooltip(anchorFrame, qInfo)
                         if item.itemLink then
                             itemText = item.itemLink
                         else
-                            local colorCode = (item.quality and select(4, GetItemQualityColor(item.quality))) or "|cffffffff"
+                            local colorCode = (item.quality and GetQualityColorHex(item.quality)) or "|cffffffff"
                             itemText = colorCode .. (item.name or "Item") .. "|r"
                         end
 

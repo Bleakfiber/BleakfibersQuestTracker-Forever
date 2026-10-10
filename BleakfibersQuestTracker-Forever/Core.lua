@@ -24,6 +24,7 @@ _G["HEADER_BLEAKFIBER_TRACKER"] = "Bleakfiber's Quest Tracker"
 _G["BINDING_CATEGORY_BLEAKFIBER_TRACKER"] = "Bleakfiber's Quest Tracker"
 _G["BINDING_CATEGORY_Bleakfiber's Quest Tracker"] = "Bleakfiber's Quest Tracker"
 _G["BINDING_NAME_BLEAKFIBER_USE_QUEST_ITEM"] = "Use Active Quest Item"
+_G["BINDING_NAME_CLICK BleakfiberQuestItemButton1:LeftButton"] = "Use Active Quest Item (Secure)"
 
 -- Safe API caller wrapper
 local function SafeCall(fn, ...)
