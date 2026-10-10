@@ -356,8 +356,8 @@ function Onboarding:RenderStep(step)
             curPlacement = "inside_right"
         end
         local placementOptions = {
-            { key = "inside_right", text = "Inside Tracker - Right" },
-            { key = "outside_left", text = "Outside Tracker - Left" },
+            { key = "outside_left", text = "Left Side (Outside Tracker)" },
+            { key = "inside_right", text = "Right Side (Inside Tracker)" },
         }
 
         local prevBtn = posLabel
@@ -370,8 +370,12 @@ function Onboarding:RenderStep(step)
             b:SetScript("OnClick", function()
                 if ns.db then
                     ns.db.itemButtonPlacement = optKey
+                    ns.db.itemButtonPosition = nil
                     if ns.StandaloneTracker and ns.StandaloneTracker.UpdateItemButton then
                         ns.StandaloneTracker:UpdateItemButton()
+                    end
+                    if ns.Tracker and ns.Tracker.UpdateSettings then
+                        ns.Tracker:UpdateSettings()
                     end
                     if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
                 end

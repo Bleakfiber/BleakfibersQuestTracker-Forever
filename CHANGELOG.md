@@ -2,6 +2,15 @@
 
 All notable changes to **Bleakfiber's Quest Tracker - Forever** are documented below.
 
+## [1.1.10] - 2026-10-10: Quest Item Button Placement & Docking Polish
+
+### Fixed
+- **Quest Item Button Placement Options**: Fixed the GUI dropdown under `/bfq` > Quests & Items to clearly provide and properly apply the two docking placements:
+  - **Left Side (Outside Tracker)** (`outside_left`)
+  - **Right Side (Inside Tracker)** (`inside_right`)
+- **Resolved Fixed-Left Button Locking**: Corrected the GUI dropdown getter/setter to read and write `itemButtonPlacement` directly (instead of disconnected legacy variables) and cleared saved drag overrides on selection so the button immediately re-docks to the chosen side.
+- **Dynamic Title Indentation & Sizing**: Automatically adjusts quest title right padding dynamically when positioned on the inside-right matching button size, and triggers a live tracker layout update upon changing placement or button size.
+
 ## [1.1.9] - 2026-10-10: Bindings Header Duplicate Registration & Polish
 
 ### Fixed

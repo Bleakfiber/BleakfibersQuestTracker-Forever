@@ -794,6 +794,11 @@ function StandaloneTracker:UpdateItemButton(trackedQuests)
             end
             btn:SetFrameLevel(targetLevel)
 
+            local itemSize = (ns.db and ns.db.itemButtons and ns.db.itemButtons.size) or 26
+            if not InCombatLockdown() then
+                btn:SetSize(itemSize, itemSize)
+            end
+
             if block and block.header then
                 btn:ClearAllPoints()
                 if customPos and i == 1 then
@@ -2521,8 +2526,8 @@ local function RenderQuestBlock(content, qInfo, yOffset, lineSpacing)
 
     local hasItem = (qInfo.itemTexture ~= nil and qInfo.itemTexture ~= "")
     local itemPlacement = (ns.db and ns.db.itemButtonPlacement) or "inside_right"
-    local leftItemOffset = 0
-    local rightItemOffset = (hasItem and itemPlacement == "inside_right") and -30 or 0
+    local itemSize = (ns.db and ns.db.itemButtons and ns.db.itemButtons.size) or 26
+    local rightItemOffset = (hasItem and itemPlacement == "inside_right") and -(itemSize + 4) or 0
 
     block.header.title:ClearAllPoints()
     if showInlineArrow and block.header.wayfinderArrow then

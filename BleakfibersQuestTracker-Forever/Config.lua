@@ -792,24 +792,40 @@ local function GetOptionsTable()
                     },
                     itemButtonPlacement = {
                         name = "Quest Item Button Placement",
-                        desc = "Select where usable quest item buttons are displayed:\n• Inside Tracker - Right: Inside the quest entry block, aligned to the right.\n• Outside Tracker - Left: Outside the tracker frame on the left side.",
+                        desc = "Select where usable quest item buttons are displayed:\n• Right Side (Inside Tracker): Inside the quest entry block, aligned to the right.\n• Left Side (Outside Tracker): Outside the tracker frame on the left side.",
                         type = "select",
                         width = "full",
                         order = 4.6,
                         values = {
-                            ["inside_right"] = "Inside Tracker - Right",
-                            ["outside_left"] = "Outside Tracker - Left",
+                            ["inside_right"] = "Right Side (Inside Tracker)",
+                            ["outside_left"] = "Left Side (Outside Tracker)",
                         },
                         get = function()
-                            local val = db.itemButtonPlacement or "inside_right"
+                            local val = (ns.db and ns.db.itemButtonPlacement) or (db and db.itemButtonPlacement) or "inside_right"
                             if val ~= "inside_right" and val ~= "outside_left" then
                                 val = "inside_right"
                             end
                             return val
                         end,
                         set = function(_, val)
-                            db.itemButtonPlacement = val
+                            if ns.db then
+                                ns.db.itemButtonPlacement = val
+                                ns.db.itemButtonPosition = nil
+                            end
+                            if db then
+                                db.itemButtonPlacement = val
+                                db.itemButtonPosition = nil
+                            end
+                            if db and db.itemButtons then
+                                db.itemButtons.position = (val == "outside_left") and "left" or "right"
+                                db.itemButtons.placement = val
+                            end
                             if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
+                            if ns.Tracker and ns.Tracker.UpdateSettings then
+                                ns.Tracker:UpdateSettings()
+                            elseif ns.StandaloneTracker and ns.StandaloneTracker.RequestUpdate then
+                                ns.StandaloneTracker:RequestUpdate()
+                            end
                             if ns.StandaloneTracker and ns.StandaloneTracker.UpdateItemButton then
                                 ns.StandaloneTracker:UpdateItemButton()
                             end
@@ -4988,8 +5004,8 @@ local DISTANCE_UNITS = {
 }
 
 local ITEM_POSITIONS = {
-    { key = "left",  label = "Left Margin" },
-    { key = "right", label = "Right Margin" },
+    { key = "outside_left", label = "Left Side (Outside Tracker)" },
+    { key = "inside_right", label = "Right Side (Inside Tracker)" },
 }
 
 local ITEM_STRATAS = {
@@ -5383,7 +5399,19 @@ local function BuildQuestsTab(content, syncList)
         "Pixel dimensions of quest item shortcut buttons (20 - 48px).",
         20, 48, 1,
         function() return itemDb.size or 26 end,
-        function(v) itemDb.size = v end,
+        function(v)
+            itemDb.size = v
+            if ns.db then
+                ns.db.itemButtons = ns.db.itemButtons or {}
+                ns.db.itemButtons.size = v
+            end
+            if ns.Tracker and ns.Tracker.UpdateSettings then
+                ns.Tracker:UpdateSettings()
+            end
+            if ns.StandaloneTracker and ns.StandaloneTracker.UpdateItemButton then
+                ns.StandaloneTracker:UpdateItemButton()
+            end
+        end,
         "%d px"
     )
     table.insert(syncList, slItemSize)
@@ -5395,10 +5423,38 @@ local function BuildQuestsTab(content, syncList)
     )
     table.insert(syncList, cbItemAuto)
 
-    local btnItemPos = CreateStyledDropdown(content, "Item Docking", 190, 22, ITEM_POSITIONS,
-        function() return itemDb.position or "left" end,
-        function(v) itemDb.position = v end,
-        "Dock quest item buttons on the left margin or right margin of the tracker."
+    local btnItemPos = CreateStyledDropdown(content, "Item Placement", 220, 22, ITEM_POSITIONS,
+        function()
+            local p = (ns.db and ns.db.itemButtonPlacement) or (db and db.itemButtonPlacement) or "inside_right"
+            if p ~= "outside_left" and p ~= "inside_right" then
+                p = "inside_right"
+            end
+            return p
+        end,
+        function(v)
+            if ns.db then
+                ns.db.itemButtonPlacement = v
+                ns.db.itemButtonPosition = nil
+            end
+            if db then
+                db.itemButtonPlacement = v
+                db.itemButtonPosition = nil
+            end
+            if itemDb then
+                itemDb.position = (v == "outside_left") and "left" or "right"
+                itemDb.placement = v
+            end
+            if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
+            if ns.Tracker and ns.Tracker.UpdateSettings then
+                ns.Tracker:UpdateSettings()
+            elseif ns.StandaloneTracker and ns.StandaloneTracker.RequestUpdate then
+                ns.StandaloneTracker:RequestUpdate()
+            end
+            if ns.StandaloneTracker and ns.StandaloneTracker.UpdateItemButton then
+                ns.StandaloneTracker:UpdateItemButton()
+            end
+        end,
+        "Dock quest item buttons on the left side outside of the tracker or on the right side of the quest inside of the tracker."
     )
     table.insert(syncList, btnItemPos)
 

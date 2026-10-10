@@ -1459,8 +1459,15 @@ local function InitializeDB(triggerEvent)
             if ns.db.sorting and ns.db.sorting.mode == "distance" then
                 ns.db.sorting.mode = "level"
             end
+            if ns.db.itemButtons and ns.db.itemButtons.position == "right" and (not ns.db.itemButtonPlacement or ns.db.itemButtonPlacement == "outside_left") then
+                ns.db.itemButtonPlacement = "inside_right"
+            elseif ns.db.itemButtons and ns.db.itemButtons.position == "left" and not ns.db.itemButtonPlacement then
+                ns.db.itemButtonPlacement = "outside_left"
+            end
             if ns.db.itemButtonPlacement == "inside_left" or ns.db.itemButtonPlacement == "outside_right" then
                 ns.db.itemButtonPlacement = (ns.db.itemButtonPlacement == "inside_left") and "outside_left" or "inside_right"
+            elseif ns.db.itemButtonPlacement ~= "outside_left" and ns.db.itemButtonPlacement ~= "inside_right" then
+                ns.db.itemButtonPlacement = "inside_right"
             end
             if ns.Tracker and ns.Tracker.UpdateSettings then
                 ns.Tracker:UpdateSettings()
@@ -1543,8 +1550,15 @@ local function InitializeDB(triggerEvent)
     if ns.db.sorting and ns.db.sorting.mode == "distance" then
         ns.db.sorting.mode = "level"
     end
+    if ns.db and ns.db.itemButtons and ns.db.itemButtons.position == "right" and (not ns.db.itemButtonPlacement or ns.db.itemButtonPlacement == "outside_left") then
+        ns.db.itemButtonPlacement = "inside_right"
+    elseif ns.db and ns.db.itemButtons and ns.db.itemButtons.position == "left" and not ns.db.itemButtonPlacement then
+        ns.db.itemButtonPlacement = "outside_left"
+    end
     if ns.db and (ns.db.itemButtonPlacement == "inside_left" or ns.db.itemButtonPlacement == "outside_right") then
         ns.db.itemButtonPlacement = (ns.db.itemButtonPlacement == "inside_left") and "outside_left" or "inside_right"
+    elseif ns.db and (ns.db.itemButtonPlacement ~= "outside_left" and ns.db.itemButtonPlacement ~= "inside_right") then
+        ns.db.itemButtonPlacement = "inside_right"
     end
     if not BleakfiberTrackerDB.partyQuestData then
         BleakfiberTrackerDB.partyQuestData = {}
