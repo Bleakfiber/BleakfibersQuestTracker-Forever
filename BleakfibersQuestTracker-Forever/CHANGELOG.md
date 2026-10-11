@@ -1,5 +1,10 @@
 # Changelog - Bleakfiber's Quest Tracker (Forever)
 
+## [1.1.11] - 2026-10-10
+
+### Fixed
+- **Objective Line Indentation Calculation**: Fixed Lua runtime error on `leftItemOffset` in `RenderQuestBlock` by properly retaining the base offset variable during item button sizing calculations.
+
 ## [1.1.10] - 2026-10-10
 
 ### Fixed

@@ -2527,6 +2527,7 @@ local function RenderQuestBlock(content, qInfo, yOffset, lineSpacing)
     local hasItem = (qInfo.itemTexture ~= nil and qInfo.itemTexture ~= "")
     local itemPlacement = (ns.db and ns.db.itemButtonPlacement) or "inside_right"
     local itemSize = (ns.db and ns.db.itemButtons and ns.db.itemButtons.size) or 26
+    local leftItemOffset = 0
     local rightItemOffset = (hasItem and itemPlacement == "inside_right") and -(itemSize + 4) or 0
 
     block.header.title:ClearAllPoints()

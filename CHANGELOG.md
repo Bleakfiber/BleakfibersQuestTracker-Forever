@@ -2,6 +2,11 @@
 
 All notable changes to **Bleakfiber's Quest Tracker - Forever** are documented below.
 
+## [1.1.11] - 2026-10-10: Objective Line Indentation Hotfix
+
+### Fixed
+- **Objective Line Indentation Calculation**: Fixed Lua runtime error on `leftItemOffset` in `RenderQuestBlock` by properly retaining the base offset variable during item button sizing calculations.
+
 ## [1.1.10] - 2026-10-10: Quest Item Button Placement & Docking Polish
 
 ### Fixed
