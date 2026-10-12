@@ -911,6 +911,22 @@ local function GetOptionsTable()
                             end
                         end,
                     },
+                    hideDataBarsWithTracker = {
+                        name = "Hide DataBars When Tracker Hidden",
+                        desc = "When enabled, hiding the quest tracker via keybind, button, or slash command also hides all active DataBars (XP Bar, Location Bar, and Quest Timer Bar).",
+                        type = "toggle",
+                        width = "full",
+                        order = 4.69,
+                        get = function() return not (db.databars and db.databars.hideWithTracker == false) end,
+                        set = function(_, val)
+                            db.databars = db.databars or {}
+                            db.databars.hideWithTracker = val
+                            if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
+                            if ns.DataBarsModule and ns.DataBarsModule.RefreshBars then
+                                ns.DataBarsModule:RefreshBars()
+                            end
+                        end,
+                    },
                     showTimerInObjectives = {
                         name = "Show Timers in Objective Descriptions",
                         desc = "Show a live countdown timer directly next to timed quest objectives (e.g. [04:12]). Only appears on quests with an active countdown timer.",
@@ -3339,6 +3355,20 @@ local function GetOptionsTable()
                             if ns.DataBarsModule then ns.DataBarsModule:RefreshBars() end
                         end,
                     },
+                    hideWithTracker = {
+                        name = "Hide DataBars When Tracker Hidden",
+                        desc = "Automatically hide all DataBars (XP Bar, Location Bar, and Quest Timer Bar) whenever the quest tracker is hidden via keybind, button, or slash command (enabled by default).",
+                        type = "toggle",
+                        width = "full",
+                        order = 0.55,
+                        get = function() return not (db.databars and db.databars.hideWithTracker == false) end,
+                        set = function(_, val)
+                            db.databars = db.databars or {}
+                            db.databars.hideWithTracker = val
+                            if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
+                            if ns.DataBarsModule then ns.DataBarsModule:RefreshBars() end
+                        end,
+                    },
                     useTrackerAppearance = {
                         name = "Inherit Tracker Frame Appearance",
                         desc = "When enabled, DataBars automatically share the tracker frame's background surface texture, background color & opacity, border style, corner sizing, border color, and class coloring. Turn off to configure bar appearance independently.",
@@ -5557,6 +5587,19 @@ local function BuildGeneralTab(content, syncList)
     )
     table.insert(syncList, btnBindHide)
 
+    local cbHideDataBarsWithTracker = CreateStyledCheckbox(content, "Hide DataBars When Tracker Hidden",
+        "When enabled, hiding the quest tracker via keybind, button, or slash command also hides all active DataBars (XP Bar, Location Bar, and Quest Timer Bar).",
+        function() return not (db.databars and db.databars.hideWithTracker == false) end,
+        function(v)
+            db.databars = db.databars or {}
+            db.databars.hideWithTracker = v
+            if ns.DataBarsModule and ns.DataBarsModule.RefreshBars then
+                ns.DataBarsModule:RefreshBars()
+            end
+        end
+    )
+    table.insert(syncList, cbHideDataBarsWithTracker)
+
     local h3, d3 = CreateSectionHeader(content, "MODULE MANAGEMENT", 12, 0)
     local cbModWayfinder = CreateStyledCheckbox(content, "Wayfinder Navigation Module",
         "3D floating HUD waypoint arrow, inline tracker mini arrows, and distance readouts.",
@@ -5676,6 +5719,10 @@ local function BuildGeneralTab(content, syncList)
             btnToggleVis:SetWidth(math.min(190, colWidth - 20))
             btnBindHide:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
             btnBindHide:SetWidth(math.min(190, colWidth - 20))
+            y = y - 34
+
+            cbHideDataBarsWithTracker:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbHideDataBarsWithTracker.Text:SetWidth(w - 56)
             y = y - 40
 
             h3:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
@@ -5750,6 +5797,9 @@ local function BuildGeneralTab(content, syncList)
             y = y - 34
             btnBindHide:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             btnBindHide:SetWidth(math.min(220, colWidth - 20))
+            y = y - 34
+            cbHideDataBarsWithTracker:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbHideDataBarsWithTracker.Text:SetWidth(colWidth - 32)
             y = y - 38
 
             h3:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
@@ -7228,6 +7278,30 @@ local function BuildDataBarsTab(content, syncList)
     local db = ns.db or {}
     local dataDb = db.databars or {}
 
+    local cbHideWithTracker = CreateStyledCheckbox(content, "Hide DataBars When Tracker Hidden",
+        "When enabled, hiding the quest tracker via keybind, button, or slash command also hides all active DataBars (XP Bar, Location Bar, and Quest Timer Bar).",
+        function() return dataDb.hideWithTracker ~= false end,
+        function(v)
+            dataDb.hideWithTracker = v
+            if ns.DataBarsModule and ns.DataBarsModule.RefreshBars then
+                ns.DataBarsModule:RefreshBars()
+            end
+        end
+    )
+    table.insert(syncList, cbHideWithTracker)
+
+    local cbHideDataBarsCombat = CreateStyledCheckbox(content, "Hide DataBars In Combat",
+        "Automatically hides all DataBars during combat encounters and restores them when combat ends.",
+        function() return dataDb.hideInCombat == true end,
+        function(v)
+            dataDb.hideInCombat = v
+            if ns.DataBarsModule and ns.DataBarsModule.RefreshBars then
+                ns.DataBarsModule:RefreshBars()
+            end
+        end
+    )
+    table.insert(syncList, cbHideDataBarsCombat)
+
     local h1, d1 = CreateSectionHeader(content, "EXPERIENCE & QUEST LOG PROGRESS BAR", 12, 0)
     local cbXPBar = CreateStyledCheckbox(content, "Enable Standalone XP DataBar",
         "Renders a customizable experience and completed quest turn-in progress bar.",
@@ -7352,6 +7426,12 @@ local function BuildDataBarsTab(content, syncList)
             local col1X = 16
             local col2X = col1X + colWidth + 16
 
+            cbHideWithTracker:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbHideWithTracker.Text:SetWidth(colWidth - 32)
+            cbHideDataBarsCombat:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbHideDataBarsCombat.Text:SetWidth(colWidth - 32)
+            y = y - 34
+
             cbXPBar:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             cbXPBar.Text:SetWidth(colWidth - 32)
             btnXPDock:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
@@ -7407,6 +7487,12 @@ local function BuildDataBarsTab(content, syncList)
             local colWidth = w - 36
             local col1X = 16
 
+            cbHideWithTracker:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbHideWithTracker.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            cbHideDataBarsCombat:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbHideDataBarsCombat.Text:SetWidth(colWidth - 32)
+            y = y - 32
             cbXPBar:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             cbXPBar.Text:SetWidth(colWidth - 32)
             y = y - 32

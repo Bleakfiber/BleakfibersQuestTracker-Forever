@@ -4,11 +4,12 @@
 
 ### Added
 - **Custom Background Color & Hex Input (`#000000` High-Contrast Support)**:
-  - Added a direct Hex Color Input box (`#000000`) and a one-click **Pure Black (`#000000`)** preset button under **Colors & Glows > Background Styling**, setting a 100% opaque pitch-black background (`solid` texture, alpha `1.0`) for maximum visual contrast.
+  - Added a direct Hex Color Input box (`#000000`) and a one-click **Pure Black (`#000000`)** preset button under **Colors & Fonts > Tracker Backdrop & Border**, setting a 100% opaque pitch-black background (`solid` texture, alpha `1.0`) for maximum visual contrast.
   - Upgraded the in-game Color Picker enhancement bar with a live **Hex (`#RRGGBB`)** input field and a **Black (`#000000`)** quick-select button that work across every color picker in the addon.
-- **Hide / Show Tracker Completely (Keybind, Slash Commands & Macro Support)**:
-  - Added a dedicated keybinding **Toggle Tracker Visibility (Hide/Show)** in the Blizzard Keybindings menu (under **Bleakfiber's Quest Tracker**) and an in-panel keybind button under **General > Frame & Layout**.
-  - Added slash commands `/bfqhide`, `/bfhide`, `/bfq hide`, `/bfq show`, and `/bfq togglehide` to completely hide or show the tracker and its quest item buttons.
+- **Hide / Show Tracker & DataBars Completely (Keybind, Checkbox, Slash Commands & Macro Support)**:
+  - Added a dedicated keybinding **Toggle Tracker Visibility (Hide/Show)** in the Blizzard Keybindings menu (under **Bleakfiber's Quest Tracker**) and an in-panel keybind button under **General > Visibility & Combat Behavior**.
+  - Added a **Hide DataBars When Tracker Hidden** toggle checkbox (available in both **General** and **DataBars** tabs, enabled by default) so hiding the quest tracker also hides all active DataBars (XP Bar, Location Bar, and Quest Timer Bar).
+  - Added slash commands `/bfqhide`, `/bfhide`, `/bfq hide`, `/bfq show`, and `/bfq togglehide` to completely hide or show the tracker, quest item buttons, and DataBars.
   - Added global macro functions `Bleakfiber_ToggleTracker()`, `Bleakfiber_HideTracker()`, and `Bleakfiber_ShowTracker()` for custom `/run` macros.
 
 ## [1.1.11] - 2026-10-10

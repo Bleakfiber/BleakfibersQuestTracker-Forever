@@ -1192,6 +1192,7 @@ ns.defaultDB = {
         -- DataBars: XP / Quest Log Progress Bar & Location Header Bar
         databars = {
             hideInCombat = false,              -- Hide DataBars (XP & Location bar) while in combat (default: off)
+            hideWithTracker = true,            -- Hide all DataBars when the quest tracker is hidden via keybind/command (default: on)
             useTrackerAppearance = true,       -- Follow tracker frame backdrop, border, and texture style (default: true)
             dockSpacing = 0,                   -- Spacing in pixels between tracker frame and docked DataBars (default: 0)
             -- Experience & Completed Quest Log XP Progress Bar

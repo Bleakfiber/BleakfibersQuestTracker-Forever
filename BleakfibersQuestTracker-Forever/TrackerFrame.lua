@@ -1326,6 +1326,9 @@ function Tracker:HideTracker()
     if ns.StandaloneTracker and ns.StandaloneTracker.UpdateItemButton then
         ns.StandaloneTracker:UpdateItemButton()
     end
+    if ns.DataBarsModule and ns.DataBarsModule.RefreshBars then
+        ns.DataBarsModule:RefreshBars()
+    end
     if ns.FireCallback then
         ns:FireCallback("TRACKER_VISIBILITY_CHANGED", false)
         ns:FireCallback("TRACKER_DOCKING_CHANGED")
@@ -1338,6 +1341,9 @@ function Tracker:ShowTracker()
     self:UpdateVisibility()
     if ns.StandaloneTracker and ns.StandaloneTracker.UpdateItemButton then
         ns.StandaloneTracker:UpdateItemButton()
+    end
+    if ns.DataBarsModule and ns.DataBarsModule.RefreshBars then
+        ns.DataBarsModule:RefreshBars()
     end
     if ns.FireCallback then
         ns:FireCallback("TRACKER_VISIBILITY_CHANGED", true)

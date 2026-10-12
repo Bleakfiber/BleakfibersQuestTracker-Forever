@@ -1589,6 +1589,12 @@ function DataBarsModule:UpdateTimerDocking()
     end
 end
 
+function DataBarsModule:IsHiddenWithTracker()
+    local db = (ns.db and ns.db.databars) or (ns.defaultDB and ns.defaultDB.profile and ns.defaultDB.profile.databars)
+    local hideWithTracker = not (db and db.hideWithTracker == false)
+    return hideWithTracker and (ns.Tracker and ns.Tracker.isHidden == true)
+end
+
 function DataBarsModule:UpdateAllDocking()
     self:UpdateXPDocking()
     self:UpdateLocationDocking()
@@ -1598,8 +1604,10 @@ end
 function DataBarsModule:UpdateTimerBar(force)
     local db = (ns.db and ns.db.databars) or (ns.defaultDB and ns.defaultDB.profile and ns.defaultDB.profile.databars)
     local isTimerEnabled = not (db and db.enableTimerBar == false)
-    if not isTimerEnabled then
+    local isCombatHidden = db and db.hideInCombat and (self.inCombat or (InCombatLockdown and InCombatLockdown()))
+    if not isTimerEnabled or isCombatHidden or self:IsHiddenWithTracker() then
         if timerFrame then timerFrame:Hide() end
+        if self.StopTimerTicker then self:StopTimerTicker() end
         return
     end
 
@@ -1812,9 +1820,11 @@ function DataBarsModule:RefreshBars()
     self:ApplyVisuals()
 
     local isCombatHidden = db.hideInCombat and (self.inCombat or (InCombatLockdown and InCombatLockdown()))
+    local isTrackerHidden = self:IsHiddenWithTracker()
+    local shouldHide = isCombatHidden or isTrackerHidden
 
     -- XP Bar Toggle
-    if db.enableXPBar and not isCombatHidden then
+    if db.enableXPBar and not shouldHide then
         if not xpFrame then self:CreateXPBar() end
         xpFrame:Show()
         self:UpdateXPDocking()
@@ -1827,7 +1837,7 @@ function DataBarsModule:RefreshBars()
     end
 
     -- Location Bar Toggle
-    if db.enableLocationBar and not isCombatHidden then
+    if db.enableLocationBar and not shouldHide then
         if not locFrame then self:CreateLocationBar() end
         locFrame:Show()
         self:UpdateLocationDocking()
@@ -1841,12 +1851,13 @@ function DataBarsModule:RefreshBars()
 
     -- Quest Timer Bar Toggle
     local timerEnabled = not (db and db.enableTimerBar == false)
-    if timerEnabled and not isCombatHidden then
+    if timerEnabled and not shouldHide then
         if not timerFrame then self:CreateTimerBar() end
         self:UpdateTimerDocking()
         self:UpdateTimerBar()
     elseif timerFrame then
         timerFrame:Hide()
+        if self.StopTimerTicker then self:StopTimerTicker() end
     end
 
     self:UpdateEvents()
@@ -1884,7 +1895,7 @@ function DataBarsModule:Initialize()
 
         if event == "QUEST_TIMER_UPDATE" or event == "QUEST_TIMERS_UPDATE" then
             local curDB = (ns.db and ns.db.databars)
-            if curDB and curDB.enableTimerBar and not DataBarsModule.inCombat then
+            if curDB and curDB.enableTimerBar and not DataBarsModule.inCombat and not DataBarsModule:IsHiddenWithTracker() then
                 DataBarsModule:UpdateTimerBar()
             end
             return
@@ -1899,7 +1910,7 @@ function DataBarsModule:Initialize()
                 DataBarsModule:UpdateXPBar()
             end
             local curDB = (ns.db and ns.db.databars)
-            if curDB and curDB.enableTimerBar and not DataBarsModule.inCombat then
+            if curDB and curDB.enableTimerBar and not DataBarsModule.inCombat and not DataBarsModule:IsHiddenWithTracker() then
                 DataBarsModule:UpdateTimerBar()
             end
         end
@@ -1914,12 +1925,15 @@ function DataBarsModule:Initialize()
                 DataBarsModule:UpdateXPBar()
             end
             local curDB = (ns.db and ns.db.databars)
-            if curDB and curDB.enableTimerBar and not DataBarsModule.inCombat then
+            if curDB and curDB.enableTimerBar and not DataBarsModule.inCombat and not DataBarsModule:IsHiddenWithTracker() then
                 DataBarsModule:UpdateTimerBar()
             end
         end)
         ns:RegisterCallback("TRACKER_DOCKING_CHANGED", function()
             DataBarsModule:UpdateAllDocking()
+        end)
+        ns:RegisterCallback("TRACKER_VISIBILITY_CHANGED", function()
+            DataBarsModule:RefreshBars()
         end)
     end
 
