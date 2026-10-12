@@ -3,4 +3,8 @@
     <Binding name="BLEAKFIBER_USE_QUEST_ITEM" header="BLEAKFIBER_TRACKER" runOnUp="false">
         Bleakfiber_UseQuestItem();
     </Binding>
+    <!-- Toggle Tracker Visibility (Hide/Show) -->
+    <Binding name="BLEAKFIBER_TOGGLE_TRACKER_VISIBILITY" runOnUp="false">
+        Bleakfiber_ToggleTracker();
+    </Binding>
 </Bindings>

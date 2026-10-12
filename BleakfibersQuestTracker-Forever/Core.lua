@@ -24,6 +24,7 @@ _G["HEADER_BLEAKFIBER_TRACKER"] = "Bleakfiber's Quest Tracker"
 _G["BINDING_CATEGORY_BLEAKFIBER_TRACKER"] = "Bleakfiber's Quest Tracker"
 _G["BINDING_CATEGORY_Bleakfiber's Quest Tracker"] = "Bleakfiber's Quest Tracker"
 _G["BINDING_NAME_BLEAKFIBER_USE_QUEST_ITEM"] = "Use Active Quest Item"
+_G["BINDING_NAME_BLEAKFIBER_TOGGLE_TRACKER_VISIBILITY"] = "Toggle Tracker Visibility (Hide/Show)"
 
 function Bleakfiber_UseQuestItem()
     local btn = _G["BleakfiberQuestItemButton1"]
@@ -32,6 +33,28 @@ function Bleakfiber_UseQuestItem()
     end
 end
 _G["Bleakfiber_UseQuestItem"] = Bleakfiber_UseQuestItem
+
+function Bleakfiber_ToggleTracker()
+    if ns.Tracker and ns.Tracker.ToggleVisibility then
+        ns.Tracker:ToggleVisibility()
+    end
+end
+_G["Bleakfiber_ToggleTracker"] = Bleakfiber_ToggleTracker
+_G["Bleakfiber_ToggleTrackerVisibility"] = Bleakfiber_ToggleTracker
+
+function Bleakfiber_HideTracker()
+    if ns.Tracker and ns.Tracker.HideTracker then
+        ns.Tracker:HideTracker()
+    end
+end
+_G["Bleakfiber_HideTracker"] = Bleakfiber_HideTracker
+
+function Bleakfiber_ShowTracker()
+    if ns.Tracker and ns.Tracker.ShowTracker then
+        ns.Tracker:ShowTracker()
+    end
+end
+_G["Bleakfiber_ShowTracker"] = Bleakfiber_ShowTracker
 
 -- Safe API caller wrapper
 local function SafeCall(fn, ...)
@@ -1678,13 +1701,13 @@ local function InitializeDB(triggerEvent)
         pos and (pos.point .. " (" .. tostring(pos.x) .. ", " .. tostring(pos.y) .. ")") or "default"))
 end
 
--- Color Picker Enhancements: Quick-select Class Color & Faction Color on any ColorPicker
+-- Color Picker Enhancements: Quick-select Class Color, Faction Color, Pure Black & Hex Input on any ColorPicker
 local function SetupColorPickerEnhancements()
     if not ColorPickerFrame or ColorPickerFrame.BleakfiberEnhanced then return end
     ColorPickerFrame.BleakfiberEnhanced = true
 
     local bar = CreateFrame("Frame", "BleakfiberColorPickerBar", ColorPickerFrame, BackdropTemplateMixin and "BackdropTemplate")
-    bar:SetSize(310, 32)
+    bar:SetSize(310, 62)
     bar:SetPoint("TOP", ColorPickerFrame, "BOTTOM", 0, -3)
 
     if bar.SetBackdrop then
@@ -1698,10 +1721,17 @@ local function SetupColorPickerEnhancements()
         bar:SetBackdropBorderColor(0.35, 0.35, 0.40, 0.9)
     end
 
+    local customHexEditBox
+
     local function ApplyColor(r, g, b)
         r = math.max(0, math.min(1, r))
         g = math.max(0, math.min(1, g))
         b = math.max(0, math.min(1, b))
+
+        local hexFormatted = string.format("#%02X%02X%02X", math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5))
+        if customHexEditBox and not customHexEditBox:HasFocus() then
+            customHexEditBox:SetText(hexFormatted)
+        end
 
         -- Detect current alpha if present
         local a = 1
@@ -1800,11 +1830,11 @@ local function SetupColorPickerEnhancements()
         end
     end
 
-    -- Class Color Button
+    -- Row 1: Class Color Button & Faction Color Button
     local btnClass = CreateFrame("Button", "BleakfiberColorPickerClassBtn", bar, "UIPanelButtonTemplate")
     btnClass:SetSize(146, 24)
-    btnClass:SetPoint("LEFT", bar, "LEFT", 6, 0)
-    btnClass:SetText("") -- Clear default button text to use custom high-contrast layout
+    btnClass:SetPoint("TOPLEFT", bar, "TOPLEFT", 6, -5)
+    btnClass:SetText("")
 
     local classSwatchBorder = btnClass:CreateTexture(nil, "BACKGROUND")
     classSwatchBorder:SetSize(16, 16)
@@ -1842,11 +1872,10 @@ local function SetupColorPickerEnhancements()
         GameTooltip:Hide()
     end)
 
-    -- Faction Color Button
     local btnFaction = CreateFrame("Button", "BleakfiberColorPickerFactionBtn", bar, "UIPanelButtonTemplate")
     btnFaction:SetSize(146, 24)
-    btnFaction:SetPoint("RIGHT", bar, "RIGHT", -6, 0)
-    btnFaction:SetText("") -- Clear default button text to use custom high-contrast layout
+    btnFaction:SetPoint("TOPRIGHT", bar, "TOPRIGHT", -6, -5)
+    btnFaction:SetText("")
 
     local factionSwatchBorder = btnFaction:CreateTexture(nil, "BACKGROUND")
     factionSwatchBorder:SetSize(16, 16)
@@ -1884,11 +1913,116 @@ local function SetupColorPickerEnhancements()
         GameTooltip:Hide()
     end)
 
+    -- Row 2: Pure Black (#000000) Quick Button & Direct Hex Input (#000000)
+    local btnBlack = CreateFrame("Button", "BleakfiberColorPickerBlackBtn", bar, "UIPanelButtonTemplate")
+    btnBlack:SetSize(146, 24)
+    btnBlack:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", 6, 5)
+    btnBlack:SetText("")
+
+    local blackSwatchBorder = btnBlack:CreateTexture(nil, "BACKGROUND")
+    blackSwatchBorder:SetSize(16, 16)
+    blackSwatchBorder:SetPoint("LEFT", btnBlack, "LEFT", 6, 0)
+    blackSwatchBorder:SetColorTexture(0.65, 0.65, 0.65, 1)
+
+    local blackSwatch = btnBlack:CreateTexture(nil, "ARTWORK")
+    blackSwatch:SetSize(12, 12)
+    blackSwatch:SetPoint("CENTER", blackSwatchBorder, "CENTER", 0, 0)
+    blackSwatch:SetColorTexture(0, 0, 0, 1)
+
+    local blackLabel = btnBlack:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    blackLabel:SetPoint("LEFT", blackSwatchBorder, "RIGHT", 6, 0)
+    blackLabel:SetPoint("RIGHT", btnBlack, "RIGHT", -4, 0)
+    blackLabel:SetJustifyH("LEFT")
+    blackLabel:SetTextColor(1, 1, 1, 1)
+    blackLabel:SetText("Black (#000000)")
+    if blackLabel.SetShadowColor and blackLabel.SetShadowOffset then
+        blackLabel:SetShadowColor(0, 0, 0, 1)
+        blackLabel:SetShadowOffset(1, -1)
+    end
+
+    btnBlack:SetScript("OnClick", function()
+        ApplyColor(0, 0, 0)
+        if customHexEditBox then
+            customHexEditBox:SetText("#000000")
+        end
+    end)
+    btnBlack:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine("Set to Pure Black (#000000)", 1, 1, 1)
+        GameTooltip:AddLine("Instantly sets the color to solid black (#000000) for maximum visual contrast.", 0.85, 0.85, 0.85, true)
+        GameTooltip:Show()
+    end)
+    btnBlack:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+
+    -- Direct Hex Input Box on the Color Picker Bar
+    local hexContainer = CreateFrame("Frame", nil, bar, BackdropTemplateMixin and "BackdropTemplate")
+    hexContainer:SetSize(146, 24)
+    hexContainer:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", -6, 5)
+    if hexContainer.SetBackdrop then
+        hexContainer:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+            tile = false, tileSize = 0, edgeSize = 10,
+            insets = { left = 2, right = 2, top = 2, bottom = 2 }
+        })
+        hexContainer:SetBackdropColor(0.03, 0.03, 0.05, 0.95)
+        hexContainer:SetBackdropBorderColor(0.50, 0.42, 0.20, 0.85)
+    end
+
+    local hexTitle = hexContainer:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    hexTitle:SetPoint("LEFT", hexContainer, "LEFT", 6, 0)
+    hexTitle:SetText("Hex:")
+
+    local hexEdit = CreateFrame("EditBox", "BleakfiberColorPickerHexEdit", hexContainer)
+    hexEdit:SetPoint("LEFT", hexTitle, "RIGHT", 4, 0)
+    hexEdit:SetPoint("RIGHT", hexContainer, "RIGHT", -6, 0)
+    hexEdit:SetHeight(20)
+    hexEdit:SetAutoFocus(false)
+    hexEdit:SetMaxLetters(7)
+    hexEdit:SetFontObject("GameFontHighlightSmall")
+    hexEdit:SetJustifyH("CENTER")
+    customHexEditBox = hexEdit
+
+    local function CommitHexInput(self)
+        local raw = (self:GetText() or ""):gsub("%s+", ""):gsub("^#", "")
+        if #raw == 3 then
+            raw = raw:sub(1, 1):rep(2) .. raw:sub(2, 2):rep(2) .. raw:sub(3, 3):rep(2)
+        end
+        if #raw == 6 then
+            local rHex = tonumber(raw:sub(1, 2), 16)
+            local gHex = tonumber(raw:sub(3, 4), 16)
+            local bHex = tonumber(raw:sub(5, 6), 16)
+            if rHex and gHex and bHex then
+                self:ClearFocus()
+                ApplyColor(rHex / 255, gHex / 255, bHex / 255)
+                self:SetText(string.format("#%02X%02X%02X", rHex, gHex, bHex))
+                return
+            end
+        end
+        self:ClearFocus()
+    end
+
+    hexEdit:SetScript("OnEnterPressed", CommitHexInput)
+    hexEdit:SetScript("OnEscapePressed", function(self)
+        self:ClearFocus()
+    end)
+    hexEdit:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine("Hex Color Code", 1, 0.82, 0)
+        GameTooltip:AddLine("Type any hex color (e.g. #000000) and press Enter to apply.", 0.9, 0.9, 0.9, true)
+        GameTooltip:Show()
+    end)
+    hexEdit:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+
     -- Dynamic positioning & button text/swatch refresh OnShow
     local function UpdateBar()
         bar:ClearAllPoints()
         local bottom = ColorPickerFrame:GetBottom()
-        if bottom and bottom < 50 then
+        if bottom and bottom < 75 then
             bar:SetPoint("BOTTOM", ColorPickerFrame, "TOP", 0, 3)
         else
             bar:SetPoint("TOP", ColorPickerFrame, "BOTTOM", 0, -3)
@@ -1903,14 +2037,28 @@ local function SetupColorPickerEnhancements()
         local fName = UnitFactionGroup("player") or "Faction"
         factionSwatch:SetColorTexture(f.r, f.g, f.b, 1)
         factionLabel:SetText("Faction: " .. fName)
+
+        if ColorPickerFrame.GetColorRGB and customHexEditBox and not customHexEditBox:HasFocus() then
+            local ok, r, g, b = pcall(ColorPickerFrame.GetColorRGB, ColorPickerFrame)
+            if ok and type(r) == "number" and type(g) == "number" and type(b) == "number" then
+                customHexEditBox:SetText(string.format("#%02X%02X%02X", math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5)))
+            end
+        end
     end
 
     ColorPickerFrame:HookScript("OnShow", UpdateBar)
+    if ColorPickerFrame:HasScript("OnColorSelect") then
+        ColorPickerFrame:HookScript("OnColorSelect", function(_, r, g, b)
+            if customHexEditBox and not customHexEditBox:HasFocus() and type(r) == "number" and type(g) == "number" and type(b) == "number" then
+                customHexEditBox:SetText(string.format("#%02X%02X%02X", math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5)))
+            end
+        end)
+    end
     if ColorPickerFrame:HasScript("OnMouseUp") then
         ColorPickerFrame:HookScript("OnMouseUp", function()
             local bottom = ColorPickerFrame:GetBottom()
             bar:ClearAllPoints()
-            if bottom and bottom < 50 then
+            if bottom and bottom < 75 then
                 bar:SetPoint("BOTTOM", ColorPickerFrame, "TOP", 0, 3)
             else
                 bar:SetPoint("TOP", ColorPickerFrame, "BOTTOM", 0, -3)

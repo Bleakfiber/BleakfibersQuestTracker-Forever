@@ -600,9 +600,10 @@ function StandaloneTracker:UpdateItemButton(trackedQuests)
     end
 
     local isCollapsed = ns.Tracker and ns.Tracker.isCollapsed
+    local isHidden = ns.Tracker and ns.Tracker.isHidden
     local isCombatHidden = ns.db and ns.db.filtering and ns.db.filtering.hideInCombat and (self.inCombat or (InCombatLockdown and InCombatLockdown()))
 
-    if isCollapsed or isCombatHidden then
+    if isCollapsed or isHidden or isCombatHidden then
         if self.itemButtons then
             for _, btn in ipairs(self.itemButtons) do
                 btn.parentBlock = nil
@@ -910,9 +911,10 @@ function StandaloneTracker:UpdateItemButtonVisibility()
     local header = tracker and tracker.header
     local sf = ns.Tracker and ns.Tracker.scrollFrame
     local isCollapsed = ns.Tracker and ns.Tracker.isCollapsed
+    local isHidden = ns.Tracker and ns.Tracker.isHidden
     local isCombatHidden = ns.db and ns.db.filtering and ns.db.filtering.hideInCombat and (self.inCombat or (InCombatLockdown and InCombatLockdown()))
 
-    local trackerVisible = tracker and tracker:IsVisible() and not isCollapsed and not isCombatHidden
+    local trackerVisible = tracker and tracker:IsVisible() and not isCollapsed and not isHidden and not isCombatHidden
     local topBound = (header and header:IsVisible() and header:GetBottom()) or (sf and sf:IsVisible() and sf:GetTop())
     local bottomBound = (tracker and tracker:IsVisible() and tracker:GetBottom()) or (sf and sf:IsVisible() and sf:GetBottom())
     local inCombat = InCombatLockdown and InCombatLockdown()

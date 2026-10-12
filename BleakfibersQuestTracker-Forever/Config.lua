@@ -877,6 +877,40 @@ local function GetOptionsTable()
                             SaveBindings(GetCurrentBindingSet())
                         end,
                     },
+                    toggleTrackerKeybind = {
+                        name = "Toggle Tracker Visibility Keybind",
+                        desc = "Click to set a keyboard shortcut to completely hide or show the entire quest tracker.",
+                        type = "keybinding",
+                        width = "full",
+                        order = 4.67,
+                        get = function()
+                            local key1 = GetBindingKey("BLEAKFIBER_TOGGLE_TRACKER_VISIBILITY")
+                            return key1 or ""
+                        end,
+                        set = function(_, key)
+                            if key == "" then
+                                local key1, key2 = GetBindingKey("BLEAKFIBER_TOGGLE_TRACKER_VISIBILITY")
+                                if key1 then SetBinding(key1) end
+                                if key2 then SetBinding(key2) end
+                            else
+                                local oldKey = GetBindingKey("BLEAKFIBER_TOGGLE_TRACKER_VISIBILITY")
+                                if oldKey then SetBinding(oldKey) end
+                                SetBinding(key, "BLEAKFIBER_TOGGLE_TRACKER_VISIBILITY")
+                            end
+                            SaveBindings(GetCurrentBindingSet())
+                        end,
+                    },
+                    toggleVisibilityBtn = {
+                        name = "Toggle Tracker (Hide/Show)",
+                        desc = "Completely hide or show the entire quest tracker window (/bfq togglehide, /bfqhide, or /bfhide).",
+                        type = "execute",
+                        order = 4.68,
+                        func = function()
+                            if ns.Tracker and ns.Tracker.ToggleVisibility then
+                                ns.Tracker:ToggleVisibility()
+                            end
+                        end,
+                    },
                     showTimerInObjectives = {
                         name = "Show Timers in Objective Descriptions",
                         desc = "Show a live countdown timer directly next to timed quest objectives (e.g. [04:12]). Only appears on quests with an active countdown timer.",
@@ -1100,6 +1134,47 @@ local function GetOptionsTable()
                                 set = function(_, r, g, b, a)
                                     db.backdrop.bgColor = { r = r, g = g, b = b, a = a }
                                     ns.Tracker:UpdateBackdrop()
+                                end,
+                            },
+                            bgHexInput = {
+                                name = "Background Hex Code (e.g. #000000)",
+                                desc = "Enter a 6-digit hex color code (such as #000000 for pure black) and press Enter.",
+                                type = "input",
+                                order = 3.2,
+                                disabled = function() return not db.backdrop.show end,
+                                get = function()
+                                    local c = db.backdrop.bgColor or { r = 0.05, g = 0.05, b = 0.05, a = 0.65 }
+                                    return string.format("#%02X%02X%02X", math.floor((c.r or 0) * 255 + 0.5), math.floor((c.g or 0) * 255 + 0.5), math.floor((c.b or 0) * 255 + 0.5))
+                                end,
+                                set = function(_, val)
+                                    local raw = (val or ""):gsub("%s+", ""):gsub("^#", "")
+                                    if #raw == 3 then
+                                        raw = raw:sub(1, 1):rep(2) .. raw:sub(2, 2):rep(2) .. raw:sub(3, 3):rep(2)
+                                    end
+                                    if #raw == 6 then
+                                        local rHex = tonumber(raw:sub(1, 2), 16)
+                                        local gHex = tonumber(raw:sub(3, 4), 16)
+                                        local bHex = tonumber(raw:sub(5, 6), 16)
+                                        if rHex and gHex and bHex then
+                                            local curA = (db.backdrop.bgColor and db.backdrop.bgColor.a) or 0.65
+                                            db.backdrop.bgColor = { r = rHex / 255, g = gHex / 255, b = bHex / 255, a = curA }
+                                            ns.Tracker:UpdateBackdrop()
+                                            if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
+                                        end
+                                    end
+                                end,
+                            },
+                            pureBlackBg = {
+                                name = "Pure Black (#000000 - High Contrast)",
+                                desc = "Instantly set the background to solid pitch black (#000000) with 100% opacity for maximum contrast and readability.",
+                                type = "execute",
+                                order = 3.5,
+                                disabled = function() return not db.backdrop.show end,
+                                func = function()
+                                    db.backdrop.bgTexture = "solid"
+                                    db.backdrop.bgColor = { r = 0, g = 0, b = 0, a = 1.0 }
+                                    ns.Tracker:UpdateBackdrop()
+                                    if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
                                 end,
                             },
                             resetBgColor = {
@@ -4647,6 +4722,322 @@ local function CreateStyledButton(parent, text, width, height, onClick, tooltipT
     return btn
 end
 
+local function CreateStyledColorPickerWithHex(parent, labelText, width, height, getColorFunc, setColorFunc, tooltipText, syncListRef)
+    local container = CreateFrame("Frame", nil, parent)
+    container:SetSize(width or 190, height or 22)
+
+    -- Left part: Color Swatch Button (opens ColorPickerFrame)
+    local swatchBtn = CreateFrame("Button", nil, container, BACKDROP_TEMPLATE)
+    swatchBtn:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0)
+    swatchBtn:SetPoint("BOTTOMLEFT", container, "BOTTOMLEFT", 0, 0)
+    swatchBtn:SetWidth(112)
+    swatchBtn:SetBackdrop(INSET_BACKDROP)
+    swatchBtn:SetBackdropColor(unpack(COLORS.tabNormal))
+    swatchBtn:SetBackdropBorderColor(unpack(COLORS.goldMuted))
+
+    local swatchBorder = swatchBtn:CreateTexture(nil, "BACKGROUND")
+    swatchBorder:SetSize(14, 14)
+    swatchBorder:SetPoint("LEFT", swatchBtn, "LEFT", 6, 0)
+    swatchBorder:SetColorTexture(0.7, 0.7, 0.7, 1)
+
+    local swatchTex = swatchBtn:CreateTexture(nil, "ARTWORK")
+    swatchTex:SetSize(12, 12)
+    swatchTex:SetPoint("CENTER", swatchBorder, "CENTER", 0, 0)
+    swatchTex:SetColorTexture(0.05, 0.05, 0.05, 1)
+
+    local btnLabel = swatchBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    btnLabel:SetPoint("LEFT", swatchBorder, "RIGHT", 6, 0)
+    btnLabel:SetPoint("RIGHT", swatchBtn, "RIGHT", -4, 0)
+    btnLabel:SetJustifyH("LEFT")
+    btnLabel:SetWordWrap(false)
+    btnLabel:SetText(labelText or "Bg Color")
+
+    -- Right part: Direct Hex EditBox (#000000)
+    local hexBoxFrame = CreateFrame("Frame", nil, container, BACKDROP_TEMPLATE)
+    hexBoxFrame:SetPoint("TOPLEFT", swatchBtn, "TOPRIGHT", 4, 0)
+    hexBoxFrame:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
+    hexBoxFrame:SetBackdrop(INSET_BACKDROP)
+    hexBoxFrame:SetBackdropColor(0.04, 0.05, 0.07, 0.95)
+    hexBoxFrame:SetBackdropBorderColor(unpack(COLORS.goldMuted))
+
+    local hexEdit = CreateFrame("EditBox", nil, hexBoxFrame)
+    hexEdit:SetAllPoints(hexBoxFrame)
+    hexEdit:SetAutoFocus(false)
+    hexEdit:SetMaxLetters(7)
+    hexEdit:SetFontObject("GameFontHighlightSmall")
+    hexEdit:SetJustifyH("CENTER")
+
+    local function SyncVisuals()
+        local r, g, b, a = 0.05, 0.05, 0.05, 0.65
+        if getColorFunc then
+            local cr, cg, cb, ca = getColorFunc()
+            if cr ~= nil then r, g, b, a = cr, cg, cb, ca or 0.65 end
+        end
+        swatchTex:SetColorTexture(r, g, b, 1)
+        if not hexEdit:HasFocus() then
+            hexEdit:SetText(string.format("#%02X%02X%02X", math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5)))
+        end
+    end
+
+    local function ApplyNewColor(r, g, b, a)
+        if setColorFunc then
+            setColorFunc(r, g, b, a)
+        end
+        SyncVisuals()
+        if syncListRef then
+            for _, w in ipairs(syncListRef) do
+                if w ~= container and w.Sync then w.Sync() end
+            end
+        end
+        if ns.Tracker and ns.Tracker.UpdateBackdrop then ns.Tracker:UpdateBackdrop() end
+        if ns.FireCallback then ns:FireCallback("SETTINGS_UPDATED") end
+        if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
+    end
+
+    hexEdit:SetScript("OnEnterPressed", function(self)
+        local raw = (self:GetText() or ""):gsub("%s+", ""):gsub("^#", "")
+        if #raw == 3 then
+            raw = raw:sub(1, 1):rep(2) .. raw:sub(2, 2):rep(2) .. raw:sub(3, 3):rep(2)
+        end
+        if #raw == 6 then
+            local rHex = tonumber(raw:sub(1, 2), 16)
+            local gHex = tonumber(raw:sub(3, 4), 16)
+            local bHex = tonumber(raw:sub(5, 6), 16)
+            if rHex and gHex and bHex then
+                local _, _, _, curA = getColorFunc()
+                self:ClearFocus()
+                ApplyNewColor(rHex / 255, gHex / 255, bHex / 255, curA or 1.0)
+                return
+            end
+        end
+        self:ClearFocus()
+        SyncVisuals()
+    end)
+
+    hexEdit:SetScript("OnEscapePressed", function(self)
+        self:ClearFocus()
+        SyncVisuals()
+    end)
+
+    hexEdit:SetScript("OnEnter", function(self)
+        hexBoxFrame:SetBackdropBorderColor(unpack(COLORS.goldBorder))
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Direct Hex Color Input", COLORS.goldText[1], COLORS.goldText[2], COLORS.goldText[3])
+        GameTooltip:AddLine("Type any 6-digit hex color code (such as #000000 for pure pitch black) and press Enter.", COLORS.whiteText[1], COLORS.whiteText[2], COLORS.whiteText[3], true)
+        GameTooltip:Show()
+    end)
+    hexEdit:SetScript("OnLeave", function()
+        hexBoxFrame:SetBackdropBorderColor(unpack(COLORS.goldMuted))
+        GameTooltip:Hide()
+    end)
+
+    swatchBtn:SetScript("OnEnter", function(self)
+        self:SetBackdropColor(0.20, 0.22, 0.28, 0.95)
+        self:SetBackdropBorderColor(unpack(COLORS.goldBorder))
+        btnLabel:SetTextColor(COLORS.goldText[1], COLORS.goldText[2], COLORS.goldText[3])
+        if tooltipText then
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:AddLine(labelText or "Background Color", COLORS.goldText[1], COLORS.goldText[2], COLORS.goldText[3])
+            GameTooltip:AddLine(tooltipText, COLORS.whiteText[1], COLORS.whiteText[2], COLORS.whiteText[3], true)
+            GameTooltip:Show()
+        end
+    end)
+    swatchBtn:SetScript("OnLeave", function(self)
+        self:SetBackdropColor(unpack(COLORS.tabNormal))
+        self:SetBackdropBorderColor(unpack(COLORS.goldMuted))
+        btnLabel:SetTextColor(COLORS.whiteText[1], COLORS.whiteText[2], COLORS.whiteText[3])
+        GameTooltip:Hide()
+    end)
+
+    swatchBtn:SetScript("OnClick", function(self)
+        PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or 856)
+        if not ColorPickerFrame then return end
+        if ns.SetupColorPickerEnhancements then
+            ns.SetupColorPickerEnhancements()
+        end
+        ColorPickerFrame:Hide()
+        ColorPickerFrame:SetFrameStrata("FULLSCREEN_DIALOG")
+        ColorPickerFrame:SetFrameLevel(self:GetFrameLevel() + 20)
+        ColorPickerFrame:SetClampedToScreen(true)
+
+        local r2, g2, b2, a2 = 0.05, 0.05, 0.05, 0.65
+        if getColorFunc then
+            local cr, cg, cb, ca = getColorFunc()
+            if cr ~= nil then r2, g2, b2, a2 = cr, cg, cb, ca or 0.65 end
+        end
+
+        if ColorPickerFrame.SetupColorPickerAndShow then
+            local info = {
+                swatchFunc = function()
+                    local r, g, b = ColorPickerFrame:GetColorRGB()
+                    local a = ColorPickerFrame.GetColorAlpha and ColorPickerFrame:GetColorAlpha() or a2
+                    ApplyNewColor(r, g, b, a)
+                end,
+                hasOpacity = true,
+                opacityFunc = function()
+                    local r, g, b = ColorPickerFrame:GetColorRGB()
+                    local a = ColorPickerFrame.GetColorAlpha and ColorPickerFrame:GetColorAlpha() or a2
+                    ApplyNewColor(r, g, b, a)
+                end,
+                opacity = a2,
+                cancelFunc = function()
+                    ApplyNewColor(r2, g2, b2, a2)
+                end,
+                r = r2,
+                g = g2,
+                b = b2,
+            }
+            ColorPickerFrame:SetupColorPickerAndShow(info)
+        else
+            ColorPickerFrame.func = function()
+                local r, g, b = ColorPickerFrame:GetColorRGB()
+                local a = OpacitySliderFrame and OpacitySliderFrame.GetValue and (1 - OpacitySliderFrame:GetValue()) or a2
+                ApplyNewColor(r, g, b, a)
+            end
+            ColorPickerFrame.hasOpacity = true
+            ColorPickerFrame.opacityFunc = ColorPickerFrame.func
+            ColorPickerFrame.opacity = 1 - a2
+            ColorPickerFrame:SetColorRGB(r2, g2, b2)
+            ColorPickerFrame.cancelFunc = function()
+                ApplyNewColor(r2, g2, b2, a2)
+            end
+            ColorPickerFrame:Show()
+        end
+    end)
+
+    container:SetScript("OnSizeChanged", function(self, w)
+        if w and w > 120 then
+            local sw = math.max(95, math.floor(w * 0.58))
+            swatchBtn:SetWidth(sw)
+        end
+    end)
+
+    container.Sync = SyncVisuals
+    SyncVisuals()
+    return container
+end
+
+local function CreateStyledKeybindButton(parent, bindingName, labelPrefix, width, height, tooltipText)
+    local btn = CreateFrame("Button", nil, parent, BACKDROP_TEMPLATE)
+    btn:SetSize(width or 190, height or 22)
+    btn:SetBackdrop(INSET_BACKDROP)
+    btn:SetBackdropColor(unpack(COLORS.tabNormal))
+    btn:SetBackdropBorderColor(unpack(COLORS.goldMuted))
+    btn:RegisterForClicks("AnyUp")
+
+    local label = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    label:SetPoint("LEFT", btn, "LEFT", 6, 0)
+    label:SetPoint("RIGHT", btn, "RIGHT", -6, 0)
+    label:SetJustifyH("CENTER")
+    label:SetWordWrap(false)
+    btn.Label = label
+
+    local isBinding = false
+
+    local function UpdateKeyText()
+        if isBinding then
+            label:SetText("|cffffd100Press Key (ESC to Clear)...|r")
+            return
+        end
+        local key = GetBindingKey and GetBindingKey(bindingName)
+        if key and key ~= "" then
+            label:SetText(string.format("%s: |cff00ff00[%s]|r", labelPrefix or "Keybind", key))
+        else
+            label:SetText(string.format("%s: |cff888888[None]|r", labelPrefix or "Keybind"))
+        end
+    end
+
+    local function StopBindingMode()
+        isBinding = false
+        btn:EnableKeyboard(false)
+        btn:SetBackdropBorderColor(unpack(COLORS.goldMuted))
+        UpdateKeyText()
+    end
+
+    btn:SetScript("OnClick", function(self, button)
+        PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or 856)
+        if isBinding then
+            if button == "RightButton" then
+                StopBindingMode()
+                return
+            end
+        else
+            if button == "RightButton" then
+                if GetBindingKey and SetBinding then
+                    local k1, k2 = GetBindingKey(bindingName)
+                    if k1 then SetBinding(k1) end
+                    if k2 then SetBinding(k2) end
+                    if SaveBindings and GetCurrentBindingSet then SaveBindings(GetCurrentBindingSet()) end
+                end
+                UpdateKeyText()
+                return
+            end
+            isBinding = true
+            self:EnableKeyboard(true)
+            self:SetBackdropBorderColor(unpack(COLORS.goldBorder))
+            UpdateKeyText()
+        end
+    end)
+
+    btn:SetScript("OnKeyDown", function(self, key)
+        if not isBinding then return end
+        if key == "ESCAPE" then
+            if GetBindingKey and SetBinding then
+                local k1, k2 = GetBindingKey(bindingName)
+                if k1 then SetBinding(k1) end
+                if k2 then SetBinding(k2) end
+                if SaveBindings and GetCurrentBindingSet then SaveBindings(GetCurrentBindingSet()) end
+            end
+            StopBindingMode()
+            return
+        end
+        if key == "LSHIFT" or key == "RSHIFT" or key == "LCTRL" or key == "RCTRL" or key == "LALT" or key == "RALT" or key == "UNKNOWN" then
+            return
+        end
+        local mod = ""
+        if IsAltKeyDown and IsAltKeyDown() then mod = mod .. "ALT-" end
+        if IsControlKeyDown and IsControlKeyDown() then mod = mod .. "CTRL-" end
+        if IsShiftKeyDown and IsShiftKeyDown() then mod = mod .. "SHIFT-" end
+        local fullKey = mod .. key
+        if GetBindingKey and SetBinding then
+            local k1, k2 = GetBindingKey(bindingName)
+            if k1 then SetBinding(k1) end
+            if k2 then SetBinding(k2) end
+            SetBinding(fullKey, bindingName)
+            if SaveBindings and GetCurrentBindingSet then SaveBindings(GetCurrentBindingSet()) end
+        end
+        StopBindingMode()
+    end)
+
+    btn:SetScript("OnHide", function()
+        if isBinding then StopBindingMode() end
+    end)
+
+    btn:SetScript("OnEnter", function(self)
+        self:SetBackdropColor(0.20, 0.22, 0.28, 0.95)
+        self:SetBackdropBorderColor(unpack(COLORS.goldBorder))
+        if tooltipText then
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:AddLine(labelPrefix or "Keybind", COLORS.goldText[1], COLORS.goldText[2], COLORS.goldText[3])
+            GameTooltip:AddLine(tooltipText, COLORS.whiteText[1], COLORS.whiteText[2], COLORS.whiteText[3], true)
+            GameTooltip:AddLine("Left-Click to bind a key. Right-Click or press ESC while binding to clear.", 0.65, 0.85, 1.0, true)
+            GameTooltip:Show()
+        end
+    end)
+
+    btn:SetScript("OnLeave", function(self)
+        self:SetBackdropColor(unpack(COLORS.tabNormal))
+        if not isBinding then
+            self:SetBackdropBorderColor(unpack(COLORS.goldMuted))
+        end
+        GameTooltip:Hide()
+    end)
+
+    btn.Sync = UpdateKeyText
+    UpdateKeyText()
+    return btn
+end
+
 --[[-----------------------------------------------------------------------------
     Custom Dark Slate & Gold Dropdown Menu System
 -------------------------------------------------------------------------------]]
@@ -5155,6 +5546,17 @@ local function BuildGeneralTab(content, syncList)
     )
     table.insert(syncList, cbCombatCollapse)
 
+    local btnToggleVis = CreateStyledButton(content, "Toggle Tracker (Hide/Show)", 190, 22, function()
+        if ns.Tracker and ns.Tracker.ToggleVisibility then
+            ns.Tracker:ToggleVisibility()
+        end
+    end, "Completely hide or show the entire quest tracker window. Macro / Slash commands: /bfqhide, /bfq hide, /bfq show, /bfq togglehide.")
+
+    local btnBindHide = CreateStyledKeybindButton(content, "BLEAKFIBER_TOGGLE_TRACKER_VISIBILITY", "Hide Tracker Key", 190, 22,
+        "Bind a keyboard shortcut to completely hide or show the quest tracker window."
+    )
+    table.insert(syncList, btnBindHide)
+
     local h3, d3 = CreateSectionHeader(content, "MODULE MANAGEMENT", 12, 0)
     local cbModWayfinder = CreateStyledCheckbox(content, "Wayfinder Navigation Module",
         "3D floating HUD waypoint arrow, inline tracker mini arrows, and distance readouts.",
@@ -5268,6 +5670,12 @@ local function BuildGeneralTab(content, syncList)
             cbCombatHide.Text:SetWidth(colWidth - 32)
             cbCombatCollapse:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
             cbCombatCollapse.Text:SetWidth(colWidth - 32)
+            y = y - 34
+
+            btnToggleVis:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnToggleVis:SetWidth(math.min(190, colWidth - 20))
+            btnBindHide:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            btnBindHide:SetWidth(math.min(190, colWidth - 20))
             y = y - 40
 
             h3:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
@@ -5336,6 +5744,12 @@ local function BuildGeneralTab(content, syncList)
             y = y - 32
             cbCombatCollapse:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             cbCombatCollapse.Text:SetWidth(colWidth - 32)
+            y = y - 32
+            btnToggleVis:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnToggleVis:SetWidth(math.min(220, colWidth - 20))
+            y = y - 34
+            btnBindHide:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnBindHide:SetWidth(math.min(220, colWidth - 20))
             y = y - 38
 
             h3:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
@@ -5706,19 +6120,29 @@ local function BuildColorsTab(content, syncList)
     local fontDb = db.fonts or {}
 
     local h1, d1 = CreateSectionHeader(content, "TRACKER BACKDROP & BORDER", 12, 0)
-    local btnBorder = CreateStyledDropdown(content, "Border Style", 190, 22, BORDER_STYLES,
-        function() return bgDb.borderStyle or "flat" end,
-        function(v) bgDb.borderStyle = v end,
-        "Choose between Flat 1px border, Blizzard Tooltip rounded corners, Dialog, or borderless."
-    )
-    table.insert(syncList, btnBorder)
 
-    local cbClassBorder = CreateStyledCheckbox(content, "Class-Colored Tracker Border",
-        "Tints the tracker frame border using your player character's class color.",
-        function() return bgDb.classColorBorder == true end,
-        function(v) bgDb.classColorBorder = v end
+    local cpBgColor = CreateStyledColorPickerWithHex(content, "Bg Color", 190, 22,
+        function()
+            local c = bgDb.bgColor or { r = 0.05, g = 0.05, b = 0.05, a = 0.65 }
+            return c.r, c.g, c.b, c.a or 0.65
+        end,
+        function(r, g, b, a)
+            local curA = (bgDb.bgColor and bgDb.bgColor.a) or 0.65
+            bgDb.bgColor = { r = r, g = g, b = b, a = a or curA }
+        end,
+        "Click the swatch to open the color picker with live palette, or click the editbox and type any Hex code (e.g. #000000) and press Enter.",
+        syncList
     )
-    table.insert(syncList, cbClassBorder)
+    table.insert(syncList, cpBgColor)
+
+    local btnPureBlack = CreateStyledButton(content, "Pure Black (#000000)", 190, 22, function()
+        bgDb.bgTexture = "solid"
+        bgDb.bgColor = { r = 0, g = 0, b = 0, a = 1.0 }
+        if ns.Tracker and ns.Tracker.UpdateBackdrop then ns.Tracker:UpdateBackdrop() end
+        for _, w in ipairs(syncList) do if w.Sync then w.Sync() end end
+        if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
+        if ns.Print then ns.Print("Tracker background set to Pure Black (#000000) at 100% opacity.") end
+    end, "Instantly sets the background to solid pitch black (#000000) with 100% opacity for maximum contrast and readability.")
 
     local slBgAlpha = CreateStyledSlider(content, "BFQ_SlBgAlpha", "Background Opacity:",
         "Controls the dark backdrop fill opacity (0% - 100%).",
@@ -5743,6 +6167,20 @@ local function BuildColorsTab(content, syncList)
         "%.2f"
     )
     table.insert(syncList, slBorderAlpha)
+
+    local btnBorder = CreateStyledDropdown(content, "Border Style", 190, 22, BORDER_STYLES,
+        function() return bgDb.borderStyle or "flat" end,
+        function(v) bgDb.borderStyle = v end,
+        "Choose between Flat 1px border, Blizzard Tooltip rounded corners, Dialog, or borderless."
+    )
+    table.insert(syncList, btnBorder)
+
+    local cbClassBorder = CreateStyledCheckbox(content, "Class-Colored Tracker Border",
+        "Tints the tracker frame border using your player character's class color.",
+        function() return bgDb.classColorBorder == true end,
+        function(v) bgDb.classColorBorder = v end
+    )
+    table.insert(syncList, cbClassBorder)
 
     local h2, d2 = CreateSectionHeader(content, "TYPOGRAPHY & TEXT SIZES", 12, 0)
 
@@ -5876,16 +6314,22 @@ local function BuildColorsTab(content, syncList)
             local col1X = 16
             local col2X = col1X + colWidth + 16
 
-            btnBorder:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
-            btnBorder:SetWidth(math.min(190, colWidth - 20))
-            cbClassBorder:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
-            cbClassBorder.Text:SetWidth(colWidth - 32)
-            y = y - 48
+            cpBgColor:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cpBgColor:SetWidth(math.min(190, colWidth - 20))
+            btnPureBlack:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            btnPureBlack:SetWidth(math.min(190, colWidth - 20))
+            y = y - 36
 
             slBgAlpha:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             slBgAlpha:SetWidth(math.min(190, colWidth - 20))
             slBorderAlpha:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
             slBorderAlpha:SetWidth(math.min(190, colWidth - 20))
+            y = y - 48
+
+            btnBorder:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnBorder:SetWidth(math.min(190, colWidth - 20))
+            cbClassBorder:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbClassBorder.Text:SetWidth(colWidth - 32)
             y = y - 48
 
             h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
@@ -5944,18 +6388,26 @@ local function BuildColorsTab(content, syncList)
             local colWidth = w - 36
             local col1X = 16
 
-            btnBorder:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
-            btnBorder:SetWidth(math.min(220, colWidth - 20))
-            y = y - 38
-            cbClassBorder:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
-            cbClassBorder.Text:SetWidth(colWidth - 32)
-            y = y - 32
+            cpBgColor:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cpBgColor:SetWidth(math.min(220, colWidth - 20))
+            y = y - 34
+            btnPureBlack:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnPureBlack:SetWidth(math.min(220, colWidth - 20))
+            y = y - 36
+
             slBgAlpha:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             slBgAlpha:SetWidth(math.min(220, colWidth - 20))
             y = y - 46
             slBorderAlpha:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             slBorderAlpha:SetWidth(math.min(220, colWidth - 20))
             y = y - 46
+
+            btnBorder:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnBorder:SetWidth(math.min(220, colWidth - 20))
+            y = y - 38
+            cbClassBorder:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbClassBorder.Text:SetWidth(colWidth - 32)
+            y = y - 32
 
             h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
             y = y - 30
@@ -7479,6 +7931,25 @@ local function HandleSlashCommands(msg)
         ns.Print("Position reset to default.")
     elseif command == "toggle" then
         ns.Tracker:ToggleCollapse()
+    elseif command == "hide" then
+        if ns.Tracker and ns.Tracker.HideTracker then
+            ns.Tracker:HideTracker()
+            ns.Print("Quest Tracker |cffff3333hidden|r.")
+        end
+    elseif command == "show" then
+        if ns.Tracker and ns.Tracker.ShowTracker then
+            ns.Tracker:ShowTracker()
+            ns.Print("Quest Tracker |cff00ff00shown|r.")
+        end
+    elseif command == "togglehide" or command == "visibility" then
+        if ns.Tracker and ns.Tracker.ToggleVisibility then
+            ns.Tracker:ToggleVisibility()
+            if ns.Tracker.isHidden then
+                ns.Print("Quest Tracker |cffff3333hidden|r.")
+            else
+                ns.Print("Quest Tracker |cff00ff00shown|r.")
+            end
+        end
     elseif command == "profile" then
         if rest and rest ~= "" then
             if ns.dbObject and ns.dbObject.SetProfile then
@@ -7672,6 +8143,9 @@ local function HandleSlashCommands(msg)
         print("  |cff00ff00/bfq lock|r - Lock tracker position")
         print("  |cff00ff00/bfq unlock|r - Unlock tracker position")
         print("  |cff00ff00/bfq toggle|r - Expand or collapse tracker")
+        print("  |cff00ff00/bfq hide|r - Hide tracker completely")
+        print("  |cff00ff00/bfq show|r - Show tracker")
+        print("  |cff00ff00/bfq togglehide|r or |cff00ff00/bfqhide|r - Toggle tracker visibility (Hide/Show)")
         print("  |cff00ff00/bfq reset|r - Reset tracker position to default")
         print("  |cff00ff00/bfq pos|r - View live position and saved coordinates debug info")
         print("  |cff00ff00/bfq profile [name]|r - View or switch active profile")
@@ -7685,7 +8159,12 @@ SLASH_BLEAKFIBERQUESTTRACKER2 = "/bleaktracker"
 SLASH_BLEAKFIBERQUESTTRACKER3 = "/bqt"
 SlashCmdList["BLEAKFIBERQUESTTRACKER"] = HandleSlashCommands
 
+SLASH_BLEAKFIBERTRACKERHIDE1 = "/bfqhide"
+SLASH_BLEAKFIBERTRACKERHIDE2 = "/bfhide"
+SlashCmdList["BLEAKFIBERTRACKERHIDE"] = function()
+    HandleSlashCommands("togglehide")
+end
+
 ns:RegisterCallback("ON_INITIALIZE", function()
     Config:InitializeOptions()
 end)
-

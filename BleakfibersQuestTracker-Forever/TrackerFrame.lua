@@ -532,6 +532,7 @@ function Tracker:Initialize()
     self:ApplyHeaderSettings()
     self:UpdateTypography()
     self.isCollapsed = false
+    self.isHidden = false
 
     -- Register Callbacks
     ns:RegisterCallback("SETTINGS_UPDATED", function()
@@ -1317,6 +1318,42 @@ function Tracker:ToggleCollapse()
     end
 end
 
+function Tracker:HideTracker()
+    self.isHidden = true
+    if trackerFrame then
+        trackerFrame:Hide()
+    end
+    if ns.StandaloneTracker and ns.StandaloneTracker.UpdateItemButton then
+        ns.StandaloneTracker:UpdateItemButton()
+    end
+    if ns.FireCallback then
+        ns:FireCallback("TRACKER_VISIBILITY_CHANGED", false)
+        ns:FireCallback("TRACKER_DOCKING_CHANGED")
+    end
+    ns.Print("Quest tracker hidden. Press keybind or type |cff00c0ff/bfq show|r to display.")
+end
+
+function Tracker:ShowTracker()
+    self.isHidden = false
+    self:UpdateVisibility()
+    if ns.StandaloneTracker and ns.StandaloneTracker.UpdateItemButton then
+        ns.StandaloneTracker:UpdateItemButton()
+    end
+    if ns.FireCallback then
+        ns:FireCallback("TRACKER_VISIBILITY_CHANGED", true)
+        ns:FireCallback("TRACKER_DOCKING_CHANGED")
+    end
+    ns.Print("Quest tracker shown.")
+end
+
+function Tracker:ToggleVisibility()
+    if self.isHidden or (trackerFrame and not trackerFrame:IsShown()) then
+        self:ShowTracker()
+    else
+        self:HideTracker()
+    end
+end
+
 function Tracker:CheckInstanceAutoCollapse()
     if not ns.db or not ns.db.filtering.autoHideInInstances then return end
     local inInstance, instanceType = IsInInstance()
@@ -1328,7 +1365,7 @@ function Tracker:CheckInstanceAutoCollapse()
 end
 
 function Tracker:UpdateHeight(contentHeight)
-    if not trackerFrame or self.isCollapsed then return end
+    if not trackerFrame or self.isCollapsed or self.isHidden then return end
     local db = ns.db
     local header = trackerFrame.header
     local headerH = header and header:GetHeight() or 24
@@ -1402,6 +1439,11 @@ function Tracker:SetQuestCount(trackedCount, numQuests, maxQuests)
         end
     end
 
+    if self.isHidden then
+        trackerFrame:Hide()
+        return
+    end
+
     local isCombatHidden = ns.db and ns.db.filtering and ns.db.filtering.hideInCombat and (InCombatLockdown and InCombatLockdown())
     if isCombatHidden then
         trackerFrame:Hide()
@@ -1431,6 +1473,13 @@ end
 
 function Tracker:UpdateVisibility()
     if not trackerFrame then return end
+    if self.isHidden then
+        trackerFrame:Hide()
+        if ns.StandaloneTracker and ns.StandaloneTracker.itemButton then
+            ns.StandaloneTracker.itemButton:SetAlpha(0)
+        end
+        return
+    end
     local db = ns.db or ns.defaultDB.profile
     local filtering = db.filtering or {}
 
