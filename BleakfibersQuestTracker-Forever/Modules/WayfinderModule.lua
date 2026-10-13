@@ -2037,6 +2037,8 @@ end
 local ARROW_TEXTURES = {
     minimal = "Interface\\AddOns\\BleakfibersQuestTracker-Forever\\Media\\Textures\\wayfinder_minimal.tga",
     classic = "Interface\\Minimap\\ROTATING-MINIMAPGUIDEARROW",
+    ["3d_modern"] = "Interface\\AddOns\\BleakfibersQuestTracker-Forever\\Media\\Textures\\wayfinder_3d_modern.tga",
+    ["3d_classic"] = "Interface\\AddOns\\BleakfibersQuestTracker-Forever\\Media\\Textures\\wayfinder_3d_classic.tga",
 }
 
 function WayfinderModule:GetArrowTexture()
@@ -2045,6 +2047,37 @@ function WayfinderModule:GetArrowTexture()
         return ARROW_TEXTURES.minimal
     end
     return ARROW_TEXTURES[style]
+end
+
+function WayfinderModule:GetInlineArrowTexture()
+    local style = (ns.db and ns.db.wayfinder and ns.db.wayfinder.arrowStyle) or "auto"
+    if style == "classic" or style == "3d_classic" then
+        return ARROW_TEXTURES.classic
+    end
+    return ARROW_TEXTURES.minimal
+end
+
+function WayfinderModule:Is3DArrowStyle()
+    local style = (ns.db and ns.db.wayfinder and ns.db.wayfinder.arrowStyle) or "auto"
+    return style == "3d_modern" or style == "3d_classic"
+end
+
+function WayfinderModule:SetHUDArrowOrientation(angle)
+    if not self.hudFrame or not self.hudFrame.arrow then return end
+    local arrow = self.hudFrame.arrow
+    if self:Is3DArrowStyle() then
+        arrow:SetRotation(0)
+        local twoPi = 2 * math.pi
+        local normAngle = (angle or 0) % twoPi
+        if normAngle < 0 then normAngle = normAngle + twoPi end
+        local frameIdx = math.floor((normAngle / twoPi) * 64 + 0.5) % 64
+        local col = frameIdx % 8
+        local row = math.floor(frameIdx / 8)
+        arrow:SetTexCoord(col / 8, (col + 1) / 8, row / 8, (row + 1) / 8)
+    else
+        arrow:SetTexCoord(0, 1, 0, 1)
+        arrow:SetRotation(angle or 0)
+    end
 end
 
 -- ---------------------------------------------------------------------------
@@ -2101,7 +2134,17 @@ function WayfinderModule:CreateHUDFrame()
     local arrow = frame:CreateTexture(nil, "ARTWORK")
     arrow:SetSize(54, 54)
     arrow:SetPoint("CENTER", frame, "CENTER", 0, 0)
-    arrow:SetTexture(WayfinderModule:GetArrowTexture())
+    if arrow.SetSnapToPixelGrid then
+        arrow:SetSnapToPixelGrid(false)
+    end
+    if arrow.SetTexelSnappingBias then
+        arrow:SetTexelSnappingBias(0)
+    end
+    local initTex = WayfinderModule:GetArrowTexture()
+    local ok = pcall(arrow.SetTexture, arrow, initTex, "CLAMP", "CLAMP", "TRILINEAR")
+    if not ok then
+        arrow:SetTexture(initTex)
+    end
     frame.arrow = arrow
 
     local titleText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -2232,7 +2275,19 @@ function WayfinderModule:ApplyHUDSettings()
         self.hudFrame.bg:SetShown(ns.db and ns.db.wayfinder and ns.db.wayfinder.showBackdrop == true)
     end
     if self.hudFrame.arrow then
-        self.hudFrame.arrow:SetTexture(self:GetArrowTexture())
+        local arrow = self.hudFrame.arrow
+        local texPath = self:GetArrowTexture()
+        if arrow.SetSnapToPixelGrid then
+            arrow:SetSnapToPixelGrid(false)
+        end
+        if arrow.SetTexelSnappingBias then
+            arrow:SetTexelSnappingBias(0)
+        end
+        local ok = pcall(arrow.SetTexture, arrow, texPath, "CLAMP", "CLAMP", "TRILINEAR")
+        if not ok then
+            arrow:SetTexture(texPath)
+        end
+        self:SetHUDArrowOrientation(lastRotationAngle or 0)
     end
 end
 
@@ -2418,7 +2473,7 @@ function WayfinderModule:UpdateIdleState()
         if not self.hudFrame:IsShown() then
             self.hudFrame:Show()
         end
-        self.hudFrame.arrow:SetRotation(0)
+        self:SetHUDArrowOrientation(0)
         self.hudFrame.arrow:SetVertexColor(0.1, 1.0, 0.2, 1.0)
         local showDest = not (ns.db and ns.db.wayfinder and ns.db.wayfinder.showDestination == false)
         if showDest and self.hudFrame.titleText then
@@ -2504,7 +2559,7 @@ function WayfinderModule:UpdateFrameVisibility()
             self.hudFrame:Show()
         end
         if self.previewMode then
-            self.hudFrame.arrow:SetRotation(0)
+            self:SetHUDArrowOrientation(0)
             self.hudFrame.arrow:SetVertexColor(0.1, 1.0, 0.2, 1.0)
             local showDest = not (ns.db and ns.db.wayfinder and ns.db.wayfinder.showDestination == false)
             if showDest and self.hudFrame.titleText then
@@ -2604,7 +2659,7 @@ function WayfinderModule:OnUpdate(dt)
             self.hudFrame:Show()
         end
 
-        self.hudFrame.arrow:SetRotation(navState.relativeAngle)
+        self:SetHUDArrowOrientation(navState.relativeAngle)
         lastRotationAngle = navState.relativeAngle
 
         if navState.r ~= lastColorR or navState.g ~= lastColorG or navState.b ~= lastColorB then

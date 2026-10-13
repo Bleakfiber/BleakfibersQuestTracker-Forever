@@ -203,6 +203,10 @@ function Tracker:Initialize()
             relX = math.floor((right - uipRight) + 0.5)
             relY = math.floor((top - uipTop) + 0.5)
         end
+        if ns.SnapToPixel then
+            relX = ns.SnapToPixel(relX, trackerFrame)
+            relY = ns.SnapToPixel(relY, trackerFrame)
+        end
 
         if currentDB then
             currentDB.framePosition = {
@@ -324,6 +328,9 @@ function Tracker:Initialize()
     collapseBtn:SetHighlightFontObject("GameFontHighlightSmall")
     collapseBtn:SetText("[-]")
     collapseBtn:SetScript("OnClick", function()
+        if PlaySound then
+            PlaySound((SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON) or 856)
+        end
         Tracker:ToggleCollapse()
     end)
 
@@ -359,6 +366,9 @@ function Tracker:Initialize()
     if pt then pt:SetTexCoord(0, 56/256, 56/128, 112/128) end
     menuBtn:RegisterForClicks("AnyUp")
     menuBtn:SetScript("OnClick", function(self)
+        if PlaySound then
+            PlaySound((SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPEN) or 850)
+        end
         if IsAltKeyDown() then
             if ns.Config then ns.Config:ToggleConfigFrame() end
         elseif ns.Config and ns.Config.OpenFilterMenu then
@@ -384,6 +394,9 @@ function Tracker:Initialize()
     zoneBtn:SetHighlightFontObject("GameFontHighlightSmall")
     zoneBtn:SetText("Zone")
     zoneBtn:SetScript("OnClick", function()
+        if PlaySound then
+            PlaySound((SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON) or 856)
+        end
         local db = ns.db
         if not db then return end
         if db.filtering.filterMode == "zone" or db.filtering.zoneOnly then
@@ -415,6 +428,9 @@ function Tracker:Initialize()
     allBtn:SetHighlightFontObject("GameFontHighlightSmall")
     allBtn:SetText("All")
     allBtn:SetScript("OnClick", function()
+        if PlaySound then
+            PlaySound((SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON) or 856)
+        end
         local db = ns.db
         if not db then return end
         db.filtering.filterMode = "all"
@@ -1029,31 +1045,42 @@ function Tracker:UpdateTypography()
     end
 
     if trackerFrame and trackerFrame.header then
-        if trackerFrame.header.titleText then
+        local hHeight = math.floor((math.max(24, titleSize + 8) + 1) / 2) * 2
+        trackerFrame.header:SetHeight(hHeight)
+
+        local function StyleHeaderFS(fs, sz)
+            if not fs then return end
             if outline then
-                trackerFrame.header.titleText:SetFont(headerFontPath, titleSize, outline)
+                fs:SetFont(headerFontPath, sz, outline)
             else
-                trackerFrame.header.titleText:SetFont(headerFontPath, titleSize)
+                fs:SetFont(headerFontPath, sz)
             end
             if enableShadow then
-                trackerFrame.header.titleText:SetShadowColor(0, 0, 0, 0.85)
-                trackerFrame.header.titleText:SetShadowOffset(1, -1)
+                fs:SetShadowColor(0, 0, 0, 1.0)
+                fs:SetShadowOffset(1, -1)
             else
-                trackerFrame.header.titleText:SetShadowOffset(0, 0)
+                fs:SetShadowOffset(0, 0)
             end
-            trackerFrame.header:SetHeight(math.max(24, titleSize + 8))
         end
-        if trackerFrame.header.countText then
-            if outline then
-                trackerFrame.header.countText:SetFont(headerFontPath, math.max(9, titleSize - 2), outline)
-            else
-                trackerFrame.header.countText:SetFont(headerFontPath, math.max(9, titleSize - 2))
-            end
-            if enableShadow then
-                trackerFrame.header.countText:SetShadowColor(0, 0, 0, 0.85)
-                trackerFrame.header.countText:SetShadowOffset(1, -1)
-            else
-                trackerFrame.header.countText:SetShadowOffset(0, 0)
+
+        StyleHeaderFS(trackerFrame.header.titleText, titleSize)
+        StyleHeaderFS(trackerFrame.header.countText, math.max(9, titleSize - 2))
+        for _, hBtn in ipairs({
+            trackerFrame.header.collapseBtn,
+            trackerFrame.header.filterZoneBtn,
+            trackerFrame.header.filterAllBtn,
+            trackerFrame.header.questLogBtn,
+        }) do
+            if hBtn and hBtn.GetFontString then
+                local fs = hBtn:GetFontString()
+                if fs then
+                    if enableShadow then
+                        fs:SetShadowColor(0, 0, 0, 1.0)
+                        fs:SetShadowOffset(1, -1)
+                    else
+                        fs:SetShadowOffset(0, 0)
+                    end
+                end
             end
         end
     end
@@ -1110,17 +1137,27 @@ function Tracker:RestorePosition()
 
         local validPoints = { TOPLEFT = true, TOPRIGHT = true, BOTTOMLEFT = true, BOTTOMRIGHT = true }
         if validPoints[pos.point] then
-            trackerFrame:SetPoint(pos.point, UIParent, pos.relativePoint or pos.point, pos.x, pos.y)
-            ns.Debug(string.format("[Restore] Set %s relative to %s at (%d, %d)", pos.point, pos.relativePoint or pos.point, pos.x, pos.y))
+            local px = ns.SnapToPixel and ns.SnapToPixel(pos.x, trackerFrame) or pos.x
+            local py = ns.SnapToPixel and ns.SnapToPixel(pos.y, trackerFrame) or pos.y
+            trackerFrame:SetPoint(pos.point, UIParent, pos.relativePoint or pos.point, px, py)
+            ns.Debug(string.format("[Restore] Set %s relative to %s at (%.1f, %.1f)", pos.point, pos.relativePoint or pos.point, px, py))
         else
             local defPoint, defX, defY = self:GetDefaultPosition()
+            if ns.SnapToPixel then
+                defX = ns.SnapToPixel(defX, trackerFrame)
+                defY = ns.SnapToPixel(defY, trackerFrame)
+            end
             trackerFrame:SetPoint(defPoint, UIParent, defPoint, defX, defY)
-            ns.Debug(string.format("[Restore Fallback] Set %s at (%d, %d)", defPoint, defX, defY))
+            ns.Debug(string.format("[Restore Fallback] Set %s at (%.1f, %.1f)", defPoint, defX, defY))
         end
     else
         local defPoint, defX, defY = self:GetDefaultPosition()
+        if ns.SnapToPixel then
+            defX = ns.SnapToPixel(defX, trackerFrame)
+            defY = ns.SnapToPixel(defY, trackerFrame)
+        end
         trackerFrame:SetPoint(defPoint, UIParent, defPoint, defX, defY)
-        ns.Debug(string.format("[Restore Default] Set %s at (%d, %d) [35px below minimap, farthest right]", defPoint, defX, defY))
+        ns.Debug(string.format("[Restore Default] Set %s at (%.1f, %.1f) [35px below minimap, farthest right]", defPoint, defX, defY))
     end
     trackerFrame:SetUserPlaced(false)
 end
@@ -1173,6 +1210,10 @@ function Tracker:UpdateAnchorCorner(newCorner)
     else -- "TOPRIGHT"
         relX = math.floor((right - uipRight) + 0.5)
         relY = math.floor((top - uipTop) + 0.5)
+    end
+    if ns.SnapToPixel then
+        relX = ns.SnapToPixel(relX, trackerFrame)
+        relY = ns.SnapToPixel(relY, trackerFrame)
     end
 
     db.framePosition = {
@@ -1333,7 +1374,6 @@ function Tracker:HideTracker()
         ns:FireCallback("TRACKER_VISIBILITY_CHANGED", false)
         ns:FireCallback("TRACKER_DOCKING_CHANGED")
     end
-    ns.Print("Quest tracker hidden. Press keybind or type |cff00c0ff/bfq show|r to display.")
 end
 
 function Tracker:ShowTracker()
@@ -1349,7 +1389,6 @@ function Tracker:ShowTracker()
         ns:FireCallback("TRACKER_VISIBILITY_CHANGED", true)
         ns:FireCallback("TRACKER_DOCKING_CHANGED")
     end
-    ns.Print("Quest tracker shown.")
 end
 
 function Tracker:ToggleVisibility()

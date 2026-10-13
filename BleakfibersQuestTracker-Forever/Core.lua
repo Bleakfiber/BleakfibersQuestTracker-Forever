@@ -276,17 +276,65 @@ function PublicAPI:RegisterWithMasterConfig()
     end
 end
 
--- Print helper with colored prefix
+-- Active Chat Frame Resolver (Outputs to currently selected chat tab instead of only ChatFrame1)
+local function GetActiveChatFrame()
+    if SELECTED_CHAT_FRAME and SELECTED_CHAT_FRAME.AddMessage then
+        return SELECTED_CHAT_FRAME
+    end
+    if FCF_GetCurrentChatFrame then
+        local cf = FCF_GetCurrentChatFrame()
+        if cf and cf.AddMessage then
+            return cf
+        end
+    end
+    if DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
+        return DEFAULT_CHAT_FRAME
+    end
+    return nil
+end
+ns.GetActiveChatFrame = GetActiveChatFrame
+
+local function FormatChatArgs(prefix, ...)
+    local n = select("#", ...)
+    if n == 0 then return prefix end
+    local parts = { prefix }
+    for i = 1, n do
+        parts[i + 1] = tostring(select(i, ...))
+    end
+    return table.concat(parts, " ")
+end
+
+-- Print helper with colored prefix (outputs to active chat tab)
 function ns.Print(...)
-    print("|cff00c0ff[" .. addonName .. "]|r", ...)
+    local cf = GetActiveChatFrame()
+    if cf then
+        cf:AddMessage(FormatChatArgs("|cff00c0ff[" .. addonName .. "]|r", ...))
+    else
+        print("|cff00c0ff[" .. addonName .. "]|r", ...)
+    end
 end
 
 -- Debug helper (silent by default, toggleable via /bfq debug)
 ns.debugMode = false
 function ns.Debug(...)
     if ns.debugMode then
-        print("|cff00c0ff[" .. addonName .. " Debug]|r", ...)
+        local cf = GetActiveChatFrame()
+        if cf then
+            cf:AddMessage(FormatChatArgs("|cff00c0ff[" .. addonName .. " Debug]|r", ...))
+        else
+            print("|cff00c0ff[" .. addonName .. " Debug]|r", ...)
+        end
     end
+end
+
+-- Pixel-Grid Coordinate Snapper (Eliminates sub-pixel text & shadow distortion)
+function ns.SnapToPixel(val, region)
+    if not val then return 0 end
+    local scale = (region and region.GetEffectiveScale and region:GetEffectiveScale())
+        or (UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale())
+        or 1
+    if not scale or scale <= 0 then scale = 1 end
+    return math_floor(val * scale + 0.5) / scale
 end
 
 -- Player Class & Faction Color Helpers (Cached to eliminate repetitive table churn)
@@ -1059,6 +1107,7 @@ ns.defaultDB = {
             showZoneCount = true,          -- Show count e.g. Durotar (3)
             zoneHeaderTexture = "gradient", -- "none", "flat", "gradient", "blizzard"
             zoneHeaderColor = { r = 1.0, g = 0.82, b = 0.0, a = 1.0 }, -- Classic gold
+            zoneTextColor = nil,           -- Optional custom Zone Header text color (defaults to zoneHeaderColor if nil)
             zoneHeaderColorShare = false,  -- Share with border color
             showCompleteIcon = true,       -- Show Blizzard gold ? in front of completed quests
         },
@@ -1091,6 +1140,9 @@ ns.defaultDB = {
             objectiveOutline = "",
             enableTextShadow = true,
             colorDifficulty = true,
+            titleColor = { r = 1.00, g = 0.82, b = 0.00 },             -- Custom Quest Title color (when Color by Difficulty is off)
+            objectiveColor = { r = 0.80, g = 0.80, b = 0.80 },         -- Incomplete Objective text color (#CCCCCC)
+            completedObjectiveColor = { r = 0.00, g = 1.00, b = 0.00 },-- Completed Objective / Ready text color (#00FF00)
         },
 
         -- Filtering & Behavior

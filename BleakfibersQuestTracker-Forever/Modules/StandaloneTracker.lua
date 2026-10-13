@@ -123,7 +123,7 @@ local function SafeSetFont(fs, fontPath, fontSize, outline, enableShadow)
         enableShadow = not (ns.db and ns.db.fonts and ns.db.fonts.enableTextShadow == false)
     end
     if enableShadow then
-        fs:SetShadowColor(0, 0, 0, 0.85)
+        fs:SetShadowColor(0, 0, 0, 1.0)
         fs:SetShadowOffset(1, -1)
     else
         fs:SetShadowOffset(0, 0)
@@ -231,7 +231,10 @@ local function GetFormattedQuestTitle(questInfo)
         local color = (ns.GetDifficultyColor and ns.GetDifficultyColor(level))
             or (level > 0 and GetQuestDifficultyColor and GetQuestDifficultyColor(level))
             or { r = 1, g = 1, b = 1 }
-        hexColor = string.format("|cff%02x%02x%02x", math.floor((color.r or 1) * 255), math.floor((color.g or 1) * 255), math.floor((color.b or 1) * 255))
+        hexColor = string.format("|cff%02x%02x%02x", math.floor((color.r or 1) * 255 + 0.5), math.floor((color.g or 1) * 255 + 0.5), math.floor((color.b or 1) * 255 + 0.5))
+    else
+        local tc = (db and db.fonts and db.fonts.titleColor) or { r = 1.0, g = 0.82, b = 0.0 }
+        hexColor = string.format("|cff%02x%02x%02x", math.floor((tc.r or 1) * 255 + 0.5), math.floor((tc.g or 0.82) * 255 + 0.5), math.floor((tc.b or 0) * 255 + 0.5))
     end
 
     -- Elite / Group / Dungeon / Raid Badges
@@ -317,7 +320,7 @@ local function GetFormattedQuestTitle(questInfo)
     if questInfo.isFailed then
         tag = tag .. " |cffff2020[FAILED]|r"
         return string.format("%s%s|cffff2020%s%s%s|r", activeMarker, completeMarker, levelPrefix, title, tag)
-    elseif useDifficultyColor and hexColor ~= "" then
+    elseif hexColor ~= "" then
         return string.format("%s%s%s%s%s|r%s", activeMarker, completeMarker, hexColor, levelPrefix, title, tag)
     else
         return string.format("%s%s%s%s%s", activeMarker, completeMarker, levelPrefix, title, tag)
@@ -2496,6 +2499,7 @@ end
 
 -- Helper: Render a single quest block and return its rendered height
 local function RenderQuestBlock(content, qInfo, yOffset, lineSpacing)
+    yOffset = math.floor((yOffset or 0) + 0.5)
     local block = AcquireQuestBlock(content)
     block:SetWidth(content:GetWidth())
     block:ClearAllPoints()
@@ -2534,34 +2538,47 @@ local function RenderQuestBlock(content, qInfo, yOffset, lineSpacing)
 
     block.header.title:ClearAllPoints()
     if showInlineArrow and block.header.wayfinderArrow then
-        block.header.wayfinderArrow:SetSize(inlineSize, inlineSize)
-        local arrowTex = (ns.WayfinderModule and ns.WayfinderModule.GetArrowTexture and ns.WayfinderModule:GetArrowTexture()) or "Interface\\Minimap\\ROTATING-MINIMAPGUIDEARROW"
-        block.header.wayfinderArrow:SetTexture(arrowTex)
-        block.header.wayfinderArrow:ClearAllPoints()
+        local wfArrow = block.header.wayfinderArrow
+        wfArrow:SetSize(inlineSize, inlineSize)
+        local arrowTex = (ns.WayfinderModule and ns.WayfinderModule.GetInlineArrowTexture and ns.WayfinderModule:GetInlineArrowTexture())
+            or (ns.WayfinderModule and ns.WayfinderModule.GetArrowTexture and ns.WayfinderModule:GetArrowTexture())
+            or "Interface\\Minimap\\ROTATING-MINIMAPGUIDEARROW"
+        if wfArrow.SetSnapToPixelGrid then
+            wfArrow:SetSnapToPixelGrid(false)
+        end
+        if wfArrow.SetTexelSnappingBias then
+            wfArrow:SetTexelSnappingBias(0)
+        end
+        local ok = pcall(wfArrow.SetTexture, wfArrow, arrowTex, "CLAMP", "CLAMP", "TRILINEAR")
+        if not ok then
+            wfArrow:SetTexture(arrowTex)
+        end
+        wfArrow:SetTexCoord(0, 1, 0, 1)
+        wfArrow:ClearAllPoints()
 
         if arrowPos == "left" then
-            block.header.wayfinderArrow:SetPoint("LEFT", block.header, "LEFT", leftItemOffset, 0)
-            block.header.title:SetPoint("LEFT", block.header.wayfinderArrow, "RIGHT", 4, 0)
+            wfArrow:SetPoint("LEFT", block.header, "LEFT", leftItemOffset, 0)
+            block.header.title:SetPoint("LEFT", wfArrow, "RIGHT", 4, 0)
             block.header.title:SetPoint("RIGHT", block.header, "RIGHT", rightItemOffset, 0)
         else
-            block.header.wayfinderArrow:SetPoint("RIGHT", block.header, "RIGHT", -2 + rightItemOffset, 0)
+            wfArrow:SetPoint("RIGHT", block.header, "RIGHT", -2 + rightItemOffset, 0)
             block.header.title:SetPoint("TOPLEFT", block.header, "TOPLEFT", leftItemOffset, 0)
-            block.header.title:SetPoint("RIGHT", block.header.wayfinderArrow, "LEFT", -4, 0)
+            block.header.title:SetPoint("RIGHT", wfArrow, "LEFT", -4, 0)
         end
-        block.header.wayfinderArrow:Show()
+        wfArrow:Show()
 
         if ns.WayfinderModule and ns.WayfinderModule.GetNavigationState then
             local nav = ns.WayfinderModule:GetNavigationState()
             if nav and nav.hasTarget then
-                block.header.wayfinderArrow:SetRotation(nav.relativeAngle)
-                block.header.wayfinderArrow:SetVertexColor(nav.r or 1.0, nav.g or 0.82, nav.b or 0.0, 1.0)
+                wfArrow:SetRotation(nav.relativeAngle)
+                wfArrow:SetVertexColor(nav.r or 1.0, nav.g or 0.82, nav.b or 0.0, 1.0)
             else
-                block.header.wayfinderArrow:SetRotation(0)
-                block.header.wayfinderArrow:SetVertexColor(1.0, 0.82, 0.0, 0.85)
+                wfArrow:SetRotation(0)
+                wfArrow:SetVertexColor(1.0, 0.82, 0.0, 0.85)
             end
         else
-            block.header.wayfinderArrow:SetRotation(0)
-            block.header.wayfinderArrow:SetVertexColor(1.0, 0.82, 0.0, 0.85)
+            wfArrow:SetRotation(0)
+            wfArrow:SetVertexColor(1.0, 0.82, 0.0, 0.85)
         end
     else
         if block.header.wayfinderArrow then
@@ -2576,6 +2593,7 @@ local function RenderQuestBlock(content, qInfo, yOffset, lineSpacing)
 
     local titleSize = StandaloneTracker.titleSize or 13
     local titleHeight = math.max(titleSize + 6, math.ceil(block.header.title:GetStringHeight() + 2), showInlineArrow and (inlineSize + 2) or 0)
+    titleHeight = math.floor((titleHeight + 1) / 2) * 2
     block.header:SetHeight(titleHeight)
     local currentBlockHeight = titleHeight
 
@@ -2583,6 +2601,13 @@ local function RenderQuestBlock(content, qInfo, yOffset, lineSpacing)
     if qInfo.questID and StandaloneTracker.activeBlocks then
         StandaloneTracker.activeBlocks[qInfo.questID] = block
     end
+
+    -- Resolve custom objective and completed objective colors
+    local fontDb = ns.db and ns.db.fonts
+    local objCol = (fontDb and fontDb.objectiveColor) or { r = 0.80, g = 0.80, b = 0.80 }
+    local compCol = (fontDb and fontDb.completedObjectiveColor) or { r = 0.00, g = 1.00, b = 0.00 }
+    local objHex = string.format("|cff%02x%02x%02x", math.floor((objCol.r or 0.8) * 255 + 0.5), math.floor((objCol.g or 0.8) * 255 + 0.5), math.floor((objCol.b or 0.8) * 255 + 0.5))
+    local compHex = string.format("|cff%02x%02x%02x", math.floor((compCol.r or 0) * 255 + 0.5), math.floor((compCol.g or 1) * 255 + 0.5), math.floor((compCol.b or 0) * 255 + 0.5))
 
     -- Objective Lines (Rendered only when expanded)
     if not isCollapsed then
@@ -2636,7 +2661,7 @@ local function RenderQuestBlock(content, qInfo, yOffset, lineSpacing)
                 completeFs:SetWidth(objWidth)
                 completeFs:SetWordWrap(true)
                 completeFs:SetJustifyH("LEFT")
-                completeFs:SetText("|cff00ff00Ready for turn-in|r")
+                completeFs:SetText(compHex .. "Ready for turn-in|r")
                 currentBlockHeight = currentBlockHeight + math.ceil(completeFs:GetStringHeight()) + lineSpacing
                 prevAnchor = completeFs
             elseif qInfo.objectives and #qInfo.objectives > 0 then
@@ -2652,7 +2677,7 @@ local function RenderQuestBlock(content, qInfo, yOffset, lineSpacing)
                     objFs:SetWordWrap(true)
                     objFs:SetJustifyH("LEFT")
 
-                    local colorCode = obj.finished and "|cff00ff00" or "|cffcccccc"
+                    local colorCode = obj.finished and compHex or objHex
                     local lineText = obj.text or ""
                     objFs:SetText(colorCode .. " - " .. lineText .. "|r")
 
@@ -2664,6 +2689,7 @@ local function RenderQuestBlock(content, qInfo, yOffset, lineSpacing)
         end
     end
 
+    currentBlockHeight = math.floor(currentBlockHeight + 0.5)
     block:SetHeight(currentBlockHeight)
     return currentBlockHeight
 end
@@ -2798,6 +2824,7 @@ function StandaloneTracker:UpdateTracker()
 
             table_sort(qList, ZoneQuestComparator)
 
+            yOffset = math.floor(yOffset + 0.5)
             local zh = AcquireZoneHeader(content)
             zh.zoneName = z
             zh:SetWidth(content:GetWidth())
@@ -2806,7 +2833,7 @@ function StandaloneTracker:UpdateTracker()
             zh:SetPoint("TOPRIGHT", content, "TOPRIGHT", 0, -yOffset)
 
             local titleSize = self.titleSize or 13
-            local zhHeight = math.max(22, titleSize + 6)
+            local zhHeight = math.max(22, math.floor((titleSize + 7) / 2) * 2)
             zh:SetHeight(zhHeight)
 
             local borderRef = (ns.db and ns.db.backdrop and ns.db.backdrop.borderColor) or { r = 0.15, g = 0.15, b = 0.15, a = 0.9 }
@@ -2817,6 +2844,10 @@ function StandaloneTracker:UpdateTracker()
                 end
             end
             local zhColor = (hCfg.zoneHeaderColorShare and borderRef)
+                or hCfg.zoneHeaderColor
+                or { r = 1.0, g = 0.82, b = 0.0, a = 1.0 }
+            local zhTextColor = (hCfg.zoneHeaderColorShare and borderRef)
+                or hCfg.zoneTextColor
                 or hCfg.zoneHeaderColor
                 or { r = 1.0, g = 0.82, b = 0.0, a = 1.0 }
 
@@ -2877,12 +2908,12 @@ function StandaloneTracker:UpdateTracker()
             zh.title:SetJustifyV("MIDDLE")
             zh.title:SetWordWrap(true)
             zh.title:SetText(zoneDisplayText)
-            zh.title:SetTextColor(zhColor.r, zhColor.g, zhColor.b)
+            zh.title:SetTextColor(zhTextColor.r, zhTextColor.g, zhTextColor.b)
             if zh.count then zh.count:Hide() end
 
             local textH = math.ceil(zh.title:GetStringHeight() + 6)
             if textH > zhHeight then
-                zhHeight = textH
+                zhHeight = math.floor((textH + 1) / 2) * 2
             end
             zh:SetHeight(zhHeight)
             zh.collapseText:SetHeight(zhHeight)

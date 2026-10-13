@@ -1,5 +1,26 @@
 # Changelog - Bleakfiber's Quest Tracker (Forever)
 
+## [1.1.13] - 2026-10-12
+
+### Added
+- **Header, Zone, Border, Quest Title & Objective Color Pickers (with `#RRGGBB` Hex Input)**:
+  - Added color pickers with direct `#RRGGBB` Hex inputs under **Colors & Fonts** for **Border Color**, **Quest Title Color** (when level difficulty coloring is unchecked), **Objectives Color**, and **Completed Objective Color**, plus one-click reset buttons.
+  - Added color pickers with direct `#RRGGBB` Hex inputs and bar style dropdowns under **Headers & Filters** for **Main Header Text**, **Main Header Bar**, **Main Header Buttons**, **Zone Header Text**, and **Zone Header Bar**, plus a **Match Zone Header Color to Border** toggle.
+- **3D Perspective Floating Wayfinder Arrow Styles**:
+  - Added **3D Perspective (Modern)** and **3D Perspective (Classic)** 64-angle pre-rendered 3D compass arrow styles alongside **2D Modern Minimalist** and **2D Classic Guide Arrow** under **Wayfinder & Audio > Arrow Style**.
+- **Audible Menu Open Sound**:
+  - Added audible UI sound feedback (`SOUNDKIT.IG_MAINMENU_OPEN` / `850`) when clicking the tracker header gear icon or toggling the configuration window, plus checkbox click feedback on quick-menu items.
+
+### Changed
+- **Silent Visibility Toggles**:
+  - Visibility toggles via keybind, macro (`Bleakfiber_ToggleTracker()`, `Bleakfiber_HideTracker()`, `Bleakfiber_ShowTracker()`), header button, and slash commands (`/bfqhide`, `/bfhide`, `/bfq togglehide`, `/bfq hide`, `/bfq show`) now toggle silently without printing chat messages.
+
+### Fixed
+- **Active Chat Tab Output**: Routed `ns.Print` and `ns.Debug` messages to the currently active chat tab (`SELECTED_CHAT_FRAME` / `FCF_GetCurrentChatFrame()`) instead of always outputting to `ChatFrame1`.
+- **Duplicate Chat Messages on `/bfq togglehide`**: Removed redundant print calls in `HandleSlashCommands` and `TrackerFrame.lua`.
+- **Floating Wayfinder Arrow Jaggies**: Upgraded the 2D minimalist arrow to an 8x-supersampled texture and disabled pixel-grid/texel snapping (`SetSnapToPixelGrid(false)`, `SetTexelSnappingBias(0)`, `"TRILINEAR"` filtering) for smooth, anti-aliased rotation.
+- **Crisp Pixel-Aligned Zone Headers & Text Drop Shadows**: Added physical screen-pixel coordinate snapping (`ns.SnapToPixel`), enforced even-integer header and zone header heights to prevent half-pixel vertical centering jitter, and set full-opacity `SetShadowColor(0, 0, 0, 1.0)` across all tracker FontStrings.
+
 ## [1.1.12] - 2026-10-12
 
 ### Added

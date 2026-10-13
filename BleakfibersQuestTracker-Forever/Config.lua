@@ -455,6 +455,9 @@ function Config:OpenFilterMenu(anchor)
             item.text:SetText(color .. row.text .. "|r")
             item.text:SetJustifyH("LEFT")
             item:SetScript("OnClick", function()
+                if PlaySound then
+                    PlaySound((SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON) or 856)
+                end
                 row.onClick()
                 menu:Hide()
                 Config:OpenFilterMenu(anchor)
@@ -476,6 +479,9 @@ function Config:OpenFilterMenu(anchor)
             item.text:SetText(color .. row.text .. "|r")
             item.text:SetJustifyH("LEFT")
             item:SetScript("OnClick", function()
+                if PlaySound then
+                    PlaySound((SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON) or 856)
+                end
                 row.onClick()
                 if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
                 menu:Hide()
@@ -492,6 +498,9 @@ function Config:OpenFilterMenu(anchor)
             item.text:SetText("|cff00c0ff" .. row.text .. "|r")
             item.text:SetJustifyH("CENTER")
             item:SetScript("OnClick", function()
+                if PlaySound then
+                    PlaySound((SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON) or 856)
+                end
                 row.onClick()
                 if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
             end)
@@ -2951,9 +2960,11 @@ local function GetOptionsTable()
                         type = "select",
                         order = 6,
                         values = {
-                            ["auto"] = "Auto (Modern Minimalist)",
-                            ["minimal"] = "Modern Minimalist Wedge",
-                            ["classic"] = "Classic Minimap Chevron",
+                            ["auto"] = "Auto (2D Modern Minimalist)",
+                            ["minimal"] = "2D Modern Minimalist Wedge",
+                            ["3d_modern"] = "3D Perspective (Modern)",
+                            ["3d_classic"] = "3D Perspective (Classic)",
+                            ["classic"] = "2D Classic Guide Arrow",
                         },
                         get = function() return (db.wayfinder and db.wayfinder.arrowStyle) or "auto" end,
                         set = function(_, val)
@@ -5414,6 +5425,21 @@ local BORDER_STYLES = {
     { key = "none",    label = "None (Borderless)" },
 }
 
+local HEADER_STYLES = {
+    { key = "gradient", label = "Gradient Bar" },
+    { key = "flat",     label = "Flat Solid Bar" },
+    { key = "blizzard", label = "Blizzard Header" },
+    { key = "none",     label = "None (Transparent)" },
+}
+
+local ARROW_STYLES = {
+    { key = "auto",       label = "Auto (2D Modern)" },
+    { key = "minimal",    label = "2D Modern Minimalist" },
+    { key = "3d_modern",  label = "3D Perspective (Modern)" },
+    { key = "3d_classic", label = "3D Perspective (Classic)" },
+    { key = "classic",    label = "2D Classic Guide Arrow" },
+}
+
 local SORT_MODES = {
     { key = "level", label = "By Quest Level" },
     { key = "zone",  label = "By Current Zone" },
@@ -6225,12 +6251,74 @@ local function BuildColorsTab(content, syncList)
     )
     table.insert(syncList, btnBorder)
 
+    local cpBorderColor = CreateStyledColorPickerWithHex(content, "Border Color", 190, 22,
+        function()
+            local c = bgDb.borderColor or { r = 0.15, g = 0.15, b = 0.15, a = 0.90 }
+            return c.r, c.g, c.b, c.a or 0.90
+        end,
+        function(r, g, b, a)
+            local curA = (bgDb.borderColor and bgDb.borderColor.a) or 0.90
+            bgDb.borderColor = { r = r, g = g, b = b, a = a or curA }
+        end,
+        "Choose a custom border color or enter a Hex code (e.g. #262626) when Class-Colored Border is disabled.",
+        syncList
+    )
+    table.insert(syncList, cpBorderColor)
+
     local cbClassBorder = CreateStyledCheckbox(content, "Class-Colored Tracker Border",
         "Tints the tracker frame border using your player character's class color.",
         function() return bgDb.classColorBorder == true end,
         function(v) bgDb.classColorBorder = v end
     )
     table.insert(syncList, cbClassBorder)
+
+    local h1b, d1b = CreateSectionHeader(content, "QUEST & OBJECTIVE TEXT COLORS", 12, 0)
+
+    local cbColorDiff = CreateStyledCheckbox(content, "Color Quest Titles by Level Difficulty",
+        "Colors quest titles by level difficulty (Green/Yellow/Orange/Red). Uncheck to use your custom Quest Title Color below.",
+        function() return fontDb.colorDifficulty ~= false end,
+        function(v) fontDb.colorDifficulty = v end
+    )
+    table.insert(syncList, cbColorDiff)
+
+    local cpTitleColor = CreateStyledColorPickerWithHex(content, "Quest Title", 190, 22,
+        function()
+            local c = fontDb.titleColor or { r = 1.00, g = 0.82, b = 0.00 }
+            return c.r, c.g, c.b, 1.0
+        end,
+        function(r, g, b)
+            fontDb.titleColor = { r = r, g = g, b = b }
+        end,
+        "Custom color for quest titles when 'Color Quest Titles by Level Difficulty' is unchecked. Supports #RRGGBB Hex input.",
+        syncList
+    )
+    table.insert(syncList, cpTitleColor)
+
+    local cpObjColor = CreateStyledColorPickerWithHex(content, "Objectives", 190, 22,
+        function()
+            local c = fontDb.objectiveColor or { r = 0.80, g = 0.80, b = 0.80 }
+            return c.r, c.g, c.b, 1.0
+        end,
+        function(r, g, b)
+            fontDb.objectiveColor = { r = r, g = g, b = b }
+        end,
+        "Custom text color for incomplete quest objective lines. Supports #RRGGBB Hex input (e.g. #FFFFFF for pure white).",
+        syncList
+    )
+    table.insert(syncList, cpObjColor)
+
+    local cpCompColor = CreateStyledColorPickerWithHex(content, "Completed", 190, 22,
+        function()
+            local c = fontDb.completedObjectiveColor or { r = 0.00, g = 1.00, b = 0.00 }
+            return c.r, c.g, c.b, 1.0
+        end,
+        function(r, g, b)
+            fontDb.completedObjectiveColor = { r = r, g = g, b = b }
+        end,
+        "Custom text color for finished objectives and 'Ready for turn-in' lines. Supports #RRGGBB Hex input (default: #00FF00).",
+        syncList
+    )
+    table.insert(syncList, cpCompColor)
 
     local h2, d2 = CreateSectionHeader(content, "TYPOGRAPHY & TEXT SIZES", 12, 0)
 
@@ -6336,22 +6424,37 @@ local function BuildColorsTab(content, syncList)
             else
                 bgDb.bgColor = { r = 0.05, g = 0.05, b = 0.05, a = 0.65 }
             end
+            bgDb.borderColor = { r = 0.15, g = 0.15, b = 0.15, a = 0.90 }
         end
         if ns.Tracker and ns.Tracker.UpdateBackdrop then ns.Tracker:UpdateBackdrop() end
         for _, w in ipairs(syncList) do if w.Sync then w.Sync() end end
-    end, "Reset tracker background color and opacity back to defaults.")
+    end, "Reset tracker background and border color/opacity back to defaults.")
 
-    local btnResetText = CreateStyledButton(content, "Reset Text to Class Color", 190, 22, function()
-        if db.headers then db.headers.textColor = nil end
+    local btnResetText = CreateStyledButton(content, "Reset Header & Zone Colors", 190, 22, function()
+        if db.headers then
+            db.headers.textColor = nil
+            db.headers.textureColor = { r = 0.0, g = 0.75, b = 1.0, a = 0.35 }
+            db.headers.buttonColor = nil
+            db.headers.zoneTextColor = { r = 1.0, g = 0.82, b = 0.0, a = 1.0 }
+            db.headers.zoneHeaderColor = { r = 1.0, g = 0.82, b = 0.0, a = 1.0 }
+        end
         if ns.Tracker and ns.Tracker.UpdateSettings then ns.Tracker:UpdateSettings() end
+        if ns.StandaloneTracker and ns.StandaloneTracker.UpdateTracker then ns.StandaloneTracker:UpdateTracker() end
         for _, w in ipairs(syncList) do if w.Sync then w.Sync() end end
-    end, "Reset header title text color back to your class color default.")
+        if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
+    end, "Reset main header and zone header colors back to their defaults.")
 
-    local btnResetBtnColor = CreateStyledButton(content, "Reset Buttons to Class Color", 190, 22, function()
-        if db.headers then db.headers.buttonColor = nil end
-        if ns.Tracker and ns.Tracker.UpdateSettings then ns.Tracker:UpdateSettings() end
+    local btnResetBtnColor = CreateStyledButton(content, "Reset Quest & Obj Colors", 190, 22, function()
+        if fontDb then
+            fontDb.colorDifficulty = true
+            fontDb.titleColor = { r = 1.00, g = 0.82, b = 0.00 }
+            fontDb.objectiveColor = { r = 0.80, g = 0.80, b = 0.80 }
+            fontDb.completedObjectiveColor = { r = 0.00, g = 1.00, b = 0.00 }
+        end
+        if ns.StandaloneTracker and ns.StandaloneTracker.UpdateTracker then ns.StandaloneTracker:UpdateTracker() end
         for _, w in ipairs(syncList) do if w.Sync then w.Sync() end end
-    end, "Reset header button tint back to your class color default.")
+        if ns.FlushDBToGlobals then ns.FlushDBToGlobals() end
+    end, "Reset quest title, objective, and completed objective colors back to defaults.")
 
     local function Layout(w)
         if not w or w < 100 then w = content:GetWidth() or 500 end
@@ -6378,9 +6481,28 @@ local function BuildColorsTab(content, syncList)
 
             btnBorder:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             btnBorder:SetWidth(math.min(190, colWidth - 20))
-            cbClassBorder:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
-            cbClassBorder.Text:SetWidth(colWidth - 32)
-            y = y - 48
+            cpBorderColor:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cpBorderColor:SetWidth(math.min(190, colWidth - 20))
+            y = y - 36
+
+            cbClassBorder:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbClassBorder.Text:SetWidth(w - 56)
+            y = y - 40
+
+            h1b:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            cbColorDiff:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbColorDiff.Text:SetWidth(colWidth - 32)
+            cpTitleColor:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cpTitleColor:SetWidth(math.min(190, colWidth - 20))
+            y = y - 36
+
+            cpObjColor:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cpObjColor:SetWidth(math.min(190, colWidth - 20))
+            cpCompColor:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cpCompColor:SetWidth(math.min(190, colWidth - 20))
+            y = y - 42
 
             h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
             y = y - 30
@@ -6454,10 +6576,29 @@ local function BuildColorsTab(content, syncList)
 
             btnBorder:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             btnBorder:SetWidth(math.min(220, colWidth - 20))
-            y = y - 38
+            y = y - 36
+            cpBorderColor:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cpBorderColor:SetWidth(math.min(220, colWidth - 20))
+            y = y - 36
             cbClassBorder:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             cbClassBorder.Text:SetWidth(colWidth - 32)
-            y = y - 32
+            y = y - 38
+
+            h1b:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            cbColorDiff:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbColorDiff.Text:SetWidth(colWidth - 32)
+            y = y - 34
+            cpTitleColor:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cpTitleColor:SetWidth(math.min(220, colWidth - 20))
+            y = y - 34
+            cpObjColor:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cpObjColor:SetWidth(math.min(220, colWidth - 20))
+            y = y - 34
+            cpCompColor:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cpCompColor:SetWidth(math.min(220, colWidth - 20))
+            y = y - 38
 
             h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
             y = y - 30
@@ -6564,6 +6705,96 @@ local function BuildHeadersTab(content, syncList)
     )
     table.insert(syncList, cbCollapse)
 
+    local h1b, d1b = CreateSectionHeader(content, "HEADER & ZONE BAR STYLING & COLORS", 12, 0)
+
+    local ddHeaderTex = CreateStyledDropdown(content, "Header Bar Style", 190, 22, HEADER_STYLES,
+        function() return headerDb.texture or "gradient" end,
+        function(v) headerDb.texture = v end,
+        "Choose the visual background style for the main top 'Quests' header bar."
+    )
+    table.insert(syncList, ddHeaderTex)
+
+    local cpHeaderText = CreateStyledColorPickerWithHex(content, "Header Text", 190, 22,
+        function()
+            local c = headerDb.textColor or (ns.GetClassColor and ns.GetClassColor()) or { r = 0.0, g = 0.75, b = 1.0 }
+            return c.r, c.g, c.b, 1.0
+        end,
+        function(r, g, b)
+            headerDb.textColor = { r = r, g = g, b = b }
+        end,
+        "Choose a custom color or #RRGGBB Hex code for the main 'Quests (X/Y)' header title text.",
+        syncList
+    )
+    table.insert(syncList, cpHeaderText)
+
+    local cpHeaderBar = CreateStyledColorPickerWithHex(content, "Header Bar", 190, 22,
+        function()
+            local c = headerDb.textureColor or { r = 0.0, g = 0.75, b = 1.0, a = 0.35 }
+            return c.r, c.g, c.b, c.a or 0.35
+        end,
+        function(r, g, b, a)
+            local curA = (headerDb.textureColor and headerDb.textureColor.a) or 0.35
+            headerDb.textureColor = { r = r, g = g, b = b, a = a or curA }
+        end,
+        "Choose a custom color or #RRGGBB Hex code for the main header bar background.",
+        syncList
+    )
+    table.insert(syncList, cpHeaderBar)
+
+    local cpHeaderBtns = CreateStyledColorPickerWithHex(content, "Header Buttons", 190, 22,
+        function()
+            local c = headerDb.buttonColor or (ns.GetClassColor and ns.GetClassColor()) or { r = 1.0, g = 0.82, b = 0.0 }
+            return c.r, c.g, c.b, 1.0
+        end,
+        function(r, g, b)
+            headerDb.buttonColor = { r = r, g = g, b = b }
+        end,
+        "Choose a custom color or #RRGGBB Hex code for the header bar buttons ([Log], [Zone], [All], gear icon, collapse).",
+        syncList
+    )
+    table.insert(syncList, cpHeaderBtns)
+
+    local ddZoneTex = CreateStyledDropdown(content, "Zone Bar Style", 190, 22, HEADER_STYLES,
+        function() return headerDb.zoneHeaderTexture or "gradient" end,
+        function(v) headerDb.zoneHeaderTexture = v end,
+        "Choose the visual background style for collapsible zone category header bars."
+    )
+    table.insert(syncList, ddZoneTex)
+
+    local cpZoneText = CreateStyledColorPickerWithHex(content, "Zone Text", 190, 22,
+        function()
+            local c = headerDb.zoneTextColor or headerDb.zoneHeaderColor or { r = 1.0, g = 0.82, b = 0.0, a = 1.0 }
+            return c.r, c.g, c.b, 1.0
+        end,
+        function(r, g, b)
+            headerDb.zoneTextColor = { r = r, g = g, b = b, a = 1.0 }
+        end,
+        "Choose a custom color or #RRGGBB Hex code for collapsible zone header titles (e.g. 'Westfall (3)').",
+        syncList
+    )
+    table.insert(syncList, cpZoneText)
+
+    local cpZoneBar = CreateStyledColorPickerWithHex(content, "Zone Bar", 190, 22,
+        function()
+            local c = headerDb.zoneHeaderColor or { r = 1.0, g = 0.82, b = 0.0, a = 1.0 }
+            return c.r, c.g, c.b, c.a or 1.0
+        end,
+        function(r, g, b, a)
+            local curA = (headerDb.zoneHeaderColor and headerDb.zoneHeaderColor.a) or 1.0
+            headerDb.zoneHeaderColor = { r = r, g = g, b = b, a = a or curA }
+        end,
+        "Choose a custom color or #RRGGBB Hex code for collapsible zone header bar backgrounds.",
+        syncList
+    )
+    table.insert(syncList, cpZoneBar)
+
+    local cbZoneShareBorder = CreateStyledCheckbox(content, "Match Zone Header Color to Border",
+        "Automatically synchronizes zone header bar and text colors with your tracker border color.",
+        function() return headerDb.zoneHeaderColorShare == true end,
+        function(v) headerDb.zoneHeaderColorShare = v end
+    )
+    table.insert(syncList, cbZoneShareBorder)
+
     local h2, d2 = CreateSectionHeader(content, "ZONE GROUPING & SORTING", 12, 0)
     local cbZoneHeaders = CreateStyledCheckbox(content, "Group Quests Under Zone Headers",
         "Groups quests into collapsible zone header categories.",
@@ -6627,6 +6858,33 @@ local function BuildHeadersTab(content, syncList)
             cbCollapse.Text:SetWidth(colWidth - 32)
             y = y - 40
 
+            h1b:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            ddHeaderTex:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            ddHeaderTex:SetWidth(math.min(190, colWidth - 20))
+            cpHeaderText:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cpHeaderText:SetWidth(math.min(190, colWidth - 20))
+            y = y - 36
+
+            cpHeaderBar:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cpHeaderBar:SetWidth(math.min(190, colWidth - 20))
+            cpHeaderBtns:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cpHeaderBtns:SetWidth(math.min(190, colWidth - 20))
+            y = y - 38
+
+            ddZoneTex:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            ddZoneTex:SetWidth(math.min(190, colWidth - 20))
+            cpZoneText:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cpZoneText:SetWidth(math.min(190, colWidth - 20))
+            y = y - 36
+
+            cpZoneBar:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cpZoneBar:SetWidth(math.min(190, colWidth - 20))
+            cbZoneShareBorder:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbZoneShareBorder.Text:SetWidth(colWidth - 32)
+            y = y - 42
+
             h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
             y = y - 30
 
@@ -6663,6 +6921,35 @@ local function BuildHeadersTab(content, syncList)
             y = y - 32
             cbCollapse:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             cbCollapse.Text:SetWidth(colWidth - 32)
+            y = y - 38
+
+            h1b:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
+            y = y - 30
+
+            ddHeaderTex:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            ddHeaderTex:SetWidth(math.min(220, colWidth - 20))
+            y = y - 36
+            cpHeaderText:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cpHeaderText:SetWidth(math.min(220, colWidth - 20))
+            y = y - 34
+            cpHeaderBar:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cpHeaderBar:SetWidth(math.min(220, colWidth - 20))
+            y = y - 34
+            cpHeaderBtns:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cpHeaderBtns:SetWidth(math.min(220, colWidth - 20))
+            y = y - 36
+
+            ddZoneTex:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            ddZoneTex:SetWidth(math.min(220, colWidth - 20))
+            y = y - 36
+            cpZoneText:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cpZoneText:SetWidth(math.min(220, colWidth - 20))
+            y = y - 34
+            cpZoneBar:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cpZoneBar:SetWidth(math.min(220, colWidth - 20))
+            y = y - 34
+            cbZoneShareBorder:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbZoneShareBorder.Text:SetWidth(colWidth - 32)
             y = y - 38
 
             h2:SetPoint("TOPLEFT", content, "TOPLEFT", 12, y)
@@ -6937,6 +7224,28 @@ local function BuildWayfinderTab(content, syncList)
     )
     table.insert(syncList, cbInlineArrow)
 
+    local btnArrowStyle = CreateStyledDropdown(content, "Arrow Style", 190, 22, ARROW_STYLES,
+        function() return wfDb.arrowStyle or "auto" end,
+        function(v)
+            wfDb.arrowStyle = v
+            if ns.WayfinderModule and ns.WayfinderModule.ApplyHUDSettings then
+                ns.WayfinderModule:ApplyHUDSettings()
+            end
+            if ns.StandaloneTracker and ns.StandaloneTracker.UpdateTracker then
+                ns.StandaloneTracker:UpdateTracker()
+            end
+        end,
+        "Choose between 2D Modern Minimalist, 3D Perspective (Modern), 3D Perspective (Classic), or 2D Classic Guide Arrow."
+    )
+    table.insert(syncList, btnArrowStyle)
+
+    local btnUnits = CreateStyledDropdown(content, "Distance Units", 190, 22, DISTANCE_UNITS,
+        function() return wfDb.distanceUnit or "imperial" end,
+        function(v) wfDb.distanceUnit = v end,
+        "Choose Imperial yards/miles or Metric meters/kilometers for distance readouts."
+    )
+    table.insert(syncList, btnUnits)
+
     local slArrowScale = CreateStyledSlider(content, "BFQ_SlWfScale", "HUD Arrow Scale:",
         "Scales the size of the floating HUD navigation arrow (60% - 160%).",
         0.6, 1.6, 0.05,
@@ -6954,13 +7263,6 @@ local function BuildWayfinderTab(content, syncList)
         "%d px"
     )
     table.insert(syncList, slInlineSize)
-
-    local btnUnits = CreateStyledDropdown(content, "Distance Units", 190, 22, DISTANCE_UNITS,
-        function() return wfDb.distanceUnit or "imperial" end,
-        function(v) wfDb.distanceUnit = v end,
-        "Choose Imperial yards/miles or Metric meters/kilometers for distance readouts."
-    )
-    table.insert(syncList, btnUnits)
 
     local cbArrivalSound = CreateStyledCheckbox(content, "Play Arrival Chime",
         "Plays an arrival sound effect when entering destination range.",
@@ -7123,19 +7425,21 @@ local function BuildWayfinderTab(content, syncList)
             cbInlineArrow.Text:SetWidth(colWidth - 32)
             y = y - 34
 
+            btnArrowStyle:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnArrowStyle:SetWidth(math.min(190, colWidth - 20))
+            btnUnits:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            btnUnits:SetWidth(math.min(190, colWidth - 20))
+            y = y - 38
+
             slArrowScale:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             slArrowScale:SetWidth(math.min(190, colWidth - 20))
             slInlineSize:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
             slInlineSize:SetWidth(math.min(190, colWidth - 20))
             y = y - 48
 
-            btnUnits:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
-            btnUnits:SetWidth(math.min(190, colWidth - 20))
-            cbArrivalSound:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
+            cbArrivalSound:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             cbArrivalSound.Text:SetWidth(colWidth - 32)
-            y = y - 38
-
-            cbHideCombat:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            cbHideCombat:SetPoint("TOPLEFT", content, "TOPLEFT", col2X, y)
             cbHideCombat.Text:SetWidth(colWidth - 32)
             y = y - 40
 
@@ -7198,15 +7502,18 @@ local function BuildWayfinderTab(content, syncList)
             cbInlineArrow:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             cbInlineArrow.Text:SetWidth(colWidth - 32)
             y = y - 32
+            btnArrowStyle:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnArrowStyle:SetWidth(math.min(220, colWidth - 20))
+            y = y - 36
+            btnUnits:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
+            btnUnits:SetWidth(math.min(220, colWidth - 20))
+            y = y - 38
             slArrowScale:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             slArrowScale:SetWidth(math.min(220, colWidth - 20))
             y = y - 46
             slInlineSize:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             slInlineSize:SetWidth(math.min(220, colWidth - 20))
             y = y - 46
-            btnUnits:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
-            btnUnits:SetWidth(math.min(220, colWidth - 20))
-            y = y - 38
             cbArrivalSound:SetPoint("TOPLEFT", content, "TOPLEFT", col1X, y)
             cbArrivalSound.Text:SetWidth(colWidth - 32)
             y = y - 32
@@ -7974,12 +8281,21 @@ end
 function Config:ToggleConfigFrame()
     if not self.standaloneFrame then
         local f = self:GetOrCreateStandaloneFrame()
+        if PlaySound then
+            PlaySound((SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPEN) or 850)
+        end
         f:Show()
         return
     end
     if self.standaloneFrame:IsShown() then
+        if PlaySound then
+            PlaySound((SOUNDKIT and SOUNDKIT.IG_MAINMENU_CLOSE) or 851)
+        end
         self.standaloneFrame:Hide()
     else
+        if PlaySound then
+            PlaySound((SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPEN) or 850)
+        end
         self.standaloneFrame:Show()
     end
 end
@@ -8020,21 +8336,14 @@ local function HandleSlashCommands(msg)
     elseif command == "hide" then
         if ns.Tracker and ns.Tracker.HideTracker then
             ns.Tracker:HideTracker()
-            ns.Print("Quest Tracker |cffff3333hidden|r.")
         end
     elseif command == "show" then
         if ns.Tracker and ns.Tracker.ShowTracker then
             ns.Tracker:ShowTracker()
-            ns.Print("Quest Tracker |cff00ff00shown|r.")
         end
     elseif command == "togglehide" or command == "visibility" then
         if ns.Tracker and ns.Tracker.ToggleVisibility then
             ns.Tracker:ToggleVisibility()
-            if ns.Tracker.isHidden then
-                ns.Print("Quest Tracker |cffff3333hidden|r.")
-            else
-                ns.Print("Quest Tracker |cff00ff00shown|r.")
-            end
         end
     elseif command == "profile" then
         if rest and rest ~= "" then
@@ -8148,9 +8457,9 @@ local function HandleSlashCommands(msg)
         local mapInfo = pMapID and C_Map.GetMapInfo and C_Map.GetMapInfo(pMapID)
         local mapName = (mapInfo and mapInfo.name) or "nil"
 
-        print(string.format("|cff00c0ff[BFQ Cross-Zone Diagnostics]|r Player Location:"))
-        print(string.format("  Zone: |cffffff00%s|r | Real: |cffffff00%s|r | Sub: |cffffff00%s|r", pZone, pReal, pSub ~= "" and pSub or "none"))
-        print(string.format("  MapID: |cffffff00%s|r (%s) | MapType: |cffffff00%s|r", tostring(pMapID), mapName, tostring(mapInfo and mapInfo.mapType)))
+        ns.Print(string.format("|cff00c0ff[BFQ Cross-Zone Diagnostics]|r Player Location:"))
+        ns.Print(string.format("  Zone: |cffffff00%s|r | Real: |cffffff00%s|r | Sub: |cffffff00%s|r", pZone, pReal, pSub ~= "" and pSub or "none"))
+        ns.Print(string.format("  MapID: |cffffff00%s|r (%s) | MapType: |cffffff00%s|r", tostring(pMapID), mapName, tostring(mapInfo and mapInfo.mapType)))
 
         local numEntries = (ns.GetNumQuestLogEntries and select(1, ns.GetNumQuestLogEntries())) or (GetNumQuestLogEntries and select(1, GetNumQuestLogEntries())) or 0
         local curHeader = "General"
@@ -8198,15 +8507,15 @@ local function HandleSlashCommands(msg)
                 end
 
                 local completeStr = (isComplete == 1 or isComplete == true) and "|cff00ff00[Turn-in]|r" or "|cffffcc00[Incomplete]|r"
-                print(string.format("  |cff00e5ff[%d]|r %s %s", questID, title, completeStr))
-                print(string.format("     Header: |cffffff00%s|r | POIMap: |cffffff00%s|r (%s)", curHeader, tostring(poiMap), poiMapName))
+                ns.Print(string.format("  |cff00e5ff[%d]|r %s %s", questID, title, completeStr))
+                ns.Print(string.format("     Header: |cffffff00%s|r | POIMap: |cffffff00%s|r (%s)", curHeader, tostring(poiMap), poiMapName))
                 if poiCount > 0 then
-                    print(string.format("     Points: %d | POI MapIDs: [%s]", poiCount, table.concat(poiMapsList, ", ")))
+                    ns.Print(string.format("     Points: %d | POI MapIDs: [%s]", poiCount, table.concat(poiMapsList, ", ")))
                 end
             end
         end
         if count == 0 then
-            print("  No quests found in quest log.")
+            ns.Print("  No quests found in quest log.")
         end
     elseif command == "onboard" or command == "onboarding" then
         if ns.Onboarding and ns.Onboarding.ShowWizard then
@@ -8221,22 +8530,22 @@ local function HandleSlashCommands(msg)
             Config:ToggleConfigFrame()
         end
     else
-        print("|cff00c0ffBleakfiber's Quest Tracker Commands:|r")
-        print("  |cff00ff00/bfq|r or |cff00ff00/bqt|r - Open configuration panel")
-        print("  |cff00ff00/bfq standalone|r - Force open standalone settings panel")
-        print("  |cff00ff00/bfq onboard|r - Open interactive setup walkthrough")
-        print("  |cff00ff00/bfq poi|r - Inspect live quest objective and turn-in map coordinates")
-        print("  |cff00ff00/bfq lock|r - Lock tracker position")
-        print("  |cff00ff00/bfq unlock|r - Unlock tracker position")
-        print("  |cff00ff00/bfq toggle|r - Expand or collapse tracker")
-        print("  |cff00ff00/bfq hide|r - Hide tracker completely")
-        print("  |cff00ff00/bfq show|r - Show tracker")
-        print("  |cff00ff00/bfq togglehide|r or |cff00ff00/bfqhide|r - Toggle tracker visibility (Hide/Show)")
-        print("  |cff00ff00/bfq reset|r - Reset tracker position to default")
-        print("  |cff00ff00/bfq pos|r - View live position and saved coordinates debug info")
-        print("  |cff00ff00/bfq profile [name]|r - View or switch active profile")
-        print("  |cff00ff00/bfq sharetest|r - Test quest share pipeline and pushability")
-        print("  |cff00ff00/bfq debug|r - Toggle debug log messages")
+        ns.Print("|cff00c0ffBleakfiber's Quest Tracker Commands:|r")
+        ns.Print("  |cff00ff00/bfq|r or |cff00ff00/bqt|r - Open configuration panel")
+        ns.Print("  |cff00ff00/bfq standalone|r - Force open standalone settings panel")
+        ns.Print("  |cff00ff00/bfq onboard|r - Open interactive setup walkthrough")
+        ns.Print("  |cff00ff00/bfq poi|r - Inspect live quest objective and turn-in map coordinates")
+        ns.Print("  |cff00ff00/bfq lock|r - Lock tracker position")
+        ns.Print("  |cff00ff00/bfq unlock|r - Unlock tracker position")
+        ns.Print("  |cff00ff00/bfq toggle|r - Expand or collapse tracker")
+        ns.Print("  |cff00ff00/bfq hide|r - Hide tracker completely")
+        ns.Print("  |cff00ff00/bfq show|r - Show tracker")
+        ns.Print("  |cff00ff00/bfq togglehide|r or |cff00ff00/bfqhide|r - Toggle tracker visibility (Hide/Show)")
+        ns.Print("  |cff00ff00/bfq reset|r - Reset tracker position to default")
+        ns.Print("  |cff00ff00/bfq pos|r - View live position and saved coordinates debug info")
+        ns.Print("  |cff00ff00/bfq profile [name]|r - View or switch active profile")
+        ns.Print("  |cff00ff00/bfq sharetest|r - Test quest share pipeline and pushability")
+        ns.Print("  |cff00ff00/bfq debug|r - Toggle debug log messages")
     end
 end
 
